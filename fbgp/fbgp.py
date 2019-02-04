@@ -17,11 +17,13 @@ from ryu.lib import hub
 from fbgp.bgp import BgpPeer
 from fbgp.policy import Policy
 
+from faucet import faucet_experimental_api
 
 class FlowBasedBGP(app_manager.RyuApp):
     """An application runs on ExaBGP to process BGP routes received from peers."""
 
     _CONTEXTS = {
+        'faucet_experimental_api': faucet_experimental_api.FaucetExperimentalAPI,
         }
 
     peers = None

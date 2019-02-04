@@ -4,9 +4,12 @@ language: python
 python:
     - '3.6'
 
+cache:
+    pip: true
+
 install:
     - pip3 install -r requirements.txt
     - pip3 install -r test-requirements.txt
-    - pip3 install -r faucet/test-requirements.txt
+    - python3 faucet/setup.py -q sdist
 script:
     - "python3 -m pytest --cov=. tests/"

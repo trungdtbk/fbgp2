@@ -14,7 +14,7 @@ from ryu.base import app_manager
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
 
-from fbgp.bgp import BgpPeer
+from fbgp.bgp import BgpPeer, BgpRouter
 from fbgp.policy import Policy
 
 from faucet import faucet_experimental_api
@@ -58,6 +58,11 @@ class FlowBasedBGP(app_manager.RyuApp):
                                local_as=peer_conf.get('local_as', None),
                                peer_port=peer_conf.get('peer_port', 179))
                 self.peers[peer_ip] = peer
+            self.bgp = BgpRouter(self.logger, self.peers, self.path_change_handler)
+
+    def path_change_handler(self, route):
+        # install route to Faucet
+        return
 
     def _process_exabgp_msg(self, msg):
         """Process message received from ExaBGP."""

@@ -18,6 +18,7 @@ from fbgp.bgp import BgpPeer, BgpRouter
 from fbgp.policy import Policy
 
 from faucet import faucet_experimental_api
+from faucet import faucet
 
 class FlowBasedBGP(app_manager.RyuApp):
     """An application runs on ExaBGP to process BGP routes received from peers."""
@@ -39,7 +40,8 @@ class FlowBasedBGP(app_manager.RyuApp):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
         super(FlowBasedBGP, self).stop()
 
-    def initialize(self):
+    @set_ev_cls(faucet.EventFaucetExperimentalAPIRegistered)
+    def initialize(self, ev=None):
         self.logger.info('Initializing fBGP controller')
         self._load_config()
 

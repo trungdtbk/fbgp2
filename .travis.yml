@@ -7,10 +7,10 @@ python:
 cache:
     pip: true
 
-before_install: cd faucet
 install:
     - pip3 install -r requirements.txt
     - pip3 install -r test-requirements.txt
-    - python3 setup.py -q sdist
+    - tests/install-faucet.sh
+
 script:
     - "python3 -m pytest --cov=. tests/"

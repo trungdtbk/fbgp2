@@ -14,6 +14,9 @@ from ryu.base import app_manager
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
 
+from fbgp.bgp import BgpPeer
+from fbgp.policy import Policy
+
 logger = get_logger('fbgp', os.environ.get('FBGP_LOG', None), 'info')
 
 
@@ -43,7 +46,17 @@ class FlowBasedBGP(app_manager.RyuApp):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f.read())
-            #TODO: parse config
+            self.import_policy = {}
+            self.export_policy = {}
+            self.peers = {}
+            for peer_conf in config.pop('peers'):
+                peer_ip = ipaddress.ip_address(peer_conf['peer_ip'])
+                peer = BgpPeer(peer_ip=peer_ip,
+                               peer_as=peer_conf['peer_as'],
+                               local_ip=peer_conf.get('local_ip', None),
+                               local_as=peer_conf.get('local_as', None),
+                               peer_port=peer_conf.get('peer_port', 179))
+                self.peers[peer_ip] = peer
 
     def _process_exabgp_msg(self, msg):
         """Process message received from ExaBGP."""

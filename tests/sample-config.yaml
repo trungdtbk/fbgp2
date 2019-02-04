@@ -1,0 +1,7 @@
+---
+peers:
+- peer_ip: 10.1.1.1
+  peer_as: 6510
+- peer_ip: 10.0.2.2
+  peer_as: 4122
+

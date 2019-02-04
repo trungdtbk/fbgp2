@@ -37,7 +37,7 @@ class Route(object):
                               community=self.community)
 
     def __hash__(self):
-        return hash((self.prefix, self.nexthop))
+        return hash(frozenset([str(v) for v in self.__dict__.values()]))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -98,11 +98,14 @@ class BgpPeer(object):
         """Withdraw a route from this peer."""
         if prefix in self._rib_in:
             return self._rib_in.pop(prefix)
+        return
 
     def rcv_announce(self, prefix, nexthop, **attributes):
         """Process a route announced by this peer."""
         route = Route(prefix, nexthop, **attributes)
-        self._rib_in[route.prefix] = route
+        if prefix in self._rib_in and self._rib_in[prefix] == route:
+            return
+        self._rib_in[prefix] = route
         return self.import_policy.evaluate(route)
 
     def withdraw(self, route):
@@ -146,12 +149,11 @@ class BgpPeer(object):
 class BgpRouter():
     """BGP selection algorithm."""
 
-    best_routes = {}
-    loc_rib = collections.defaultdict(set)
-
     def __init__(self, logger, peers):
         self.logger = logger
         self.peers = peers
+        self.best_routes = {}
+        self.loc_rib = collections.defaultdict(set)
 
     def _select_best_route(self, routes):
         """Select the  best route based on BGP ranking algorithm."""
@@ -165,9 +167,10 @@ class BgpRouter():
                              ('med', operator.gt)]:
                 val1 = getattr(route1, attr)
                 val2 = getattr(route2, attr)
+                self.logger.info(val1, val2)
                 if op(val1, val2):
                     return route1
-                elif op(val1, val2):
+                elif op(val2, val1):
                     return route2
 
             if route1 is not None:
@@ -188,25 +191,30 @@ class BgpRouter():
         best_route = self.best_routes.get(route.prefix, None)
         if route == best_route:
             if len(routes) == 0:
-                del self.best_routes
-            new_best = self._select_best_route(routes)
-            if new_best:
-                self.best_routes[route.prefix] = new_best
-                return new_best
+                del self.best_routes[route.prefix]
+                return best_route
+            else:
+                new_best = self._select_best_route(routes)
+                if new_best:
+                    self.best_routes[new_best.prefix] = new_best
+                    return new_best
         return None
 
     def _add_route(self, new_route):
         if new_route is None:
             return
         prefix = new_route.prefix
+        self.loc_rib[prefix].discard(new_route)
         self.loc_rib[prefix].add(new_route)
         best_route = self.best_routes.get(prefix)
-        if best_route != new_route:
-            new_best = self._select_best_route([best_route, new_route])
-            if new_best and new_best != best_route:
-                self.best_routes[prefix] = new_best
-                return new_best
-        return best_route
+        if new_route == best_route: # imply a withdrawal of the current best
+            new_best_route = self._select_best_route(self.loc_rib[prefix])
+        else:
+            new_best_route = self._select_best_route([best_route, new_route])
+        if new_best_route:
+            self.best_routes[prefix] = new_best_route
+            return new_best_route
+        return
 
     def peer_up(self, peer_ip):
         msgs = []
@@ -265,20 +273,24 @@ class BgpRouter():
                         new_best = self._add_route(route)
                         if new_best is None:
                             continue
+                        self.logger.debug('best path changed: %s' % new_best)
                         for other_peer in self._other_peers(peer):
                             msgs.extend(self._announce(other_peer, new_best))
 
             if 'withdraw' in update and 'ipv4 unicast' in update['withdraw']:
                 for prefix in update['withdraw']['ipv4 unicast']:
-                    prefix = prefix['nlri']
+                    prefix = ipaddress.ip_network(prefix['nlri'])
                     route = peer.rcv_withdraw(prefix)
                     new_best = self._del_route(route)
                     if new_best:
-                        for other_peer in self._other_peers(peer):
+                        self.logger.debug('best path changed: %s' % new_best)
+                    for other_peer in self._other_peers(peer):
+                        if new_best:
                             msgs.extend(self._announce(other_peer, new_best))
-                    else:
-                        msgs.extend(self._withdraw(other_peer, route))
+                        else:
+                            msgs.extend(self._withdraw(other_peer, route))
             return msgs
         except Exception as e:
+            print(e)
             traceback.print_exc()
         return []

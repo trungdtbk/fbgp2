@@ -17,8 +17,6 @@ from ryu.lib import hub
 from fbgp.bgp import BgpPeer
 from fbgp.policy import Policy
 
-logger = get_logger('fbgp', os.environ.get('FBGP_LOG', None), 'info')
-
 
 class FlowBasedBGP(app_manager.RyuApp):
     """An application runs on ExaBGP to process BGP routes received from peers."""
@@ -33,13 +31,14 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(FlowBasedBGP, self).__init__(*args, **kwargs)
+        self.logger = get_logger('fbgp', os.environ.get('FBGP_LOG', None), 'info')
 
     def stop(self):
-        logger.info('%s is stopping...' % self.__class__.__name__)
+        self.logger.info('%s is stopping...' % self.__class__.__name__)
         super(FlowBasedBGP, self).stop()
 
     def initialize(self):
-        logger.info('Initializing fBGP controller')
+        self.logger.info('Initializing fBGP controller')
         self._load_config()
 
     def _load_config(self):

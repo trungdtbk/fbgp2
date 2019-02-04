@@ -246,6 +246,7 @@ class BgpRouter():
         route = peer.withdraw(route)
         if route:
             msgs.extend(route.to_exabgp())
+        return msgs
 
     def process_update(self, peer_ip, update):
         """Process a BGP update received from ExaBGP."""

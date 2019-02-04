@@ -22,7 +22,7 @@ class TestBGP(unittest.TestCase):
             os.environ['FBGP_CONFIG'] = f.name
         self.fbgp = FlowBasedBGP()
         self.fbgp.initialize()
-        self.bgp = BgpRouter(self.fbgp.logger, self.fbgp.peers)
+        self.bgp = BgpRouter(self.fbgp.logger, self.fbgp.peers, path_change_handler=print)
         self.bgp.logger.setLevel('DEBUG')
         for peerip in ['10.0.1.1', '10.0.2.2']:
             peerip = ipaddress.ip_address(peerip)

@@ -149,9 +149,10 @@ class BgpPeer(object):
 class BgpRouter():
     """BGP selection algorithm."""
 
-    def __init__(self, logger, peers):
+    def __init__(self, logger, peers, path_change_handler):
         self.logger = logger
         self.peers = peers
+        self.notify_path_change = path_change_handler
         self.best_routes = {}
         self.loc_rib = collections.defaultdict(set)
 
@@ -274,6 +275,7 @@ class BgpRouter():
                         if new_best is None:
                             continue
                         self.logger.debug('best path changed: %s' % new_best)
+                        self.notify_path_change(new_best)
                         for other_peer in self._other_peers(peer):
                             msgs.extend(self._announce(other_peer, new_best))
 
@@ -283,6 +285,7 @@ class BgpRouter():
                     route = peer.rcv_withdraw(prefix)
                     new_best = self._del_route(route)
                     if new_best:
+                        self.notify_path_change(new_best)
                         self.logger.debug('best path changed: %s' % new_best)
                     for other_peer in self._other_peers(peer):
                         if new_best:

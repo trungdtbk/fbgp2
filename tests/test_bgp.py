@@ -75,3 +75,8 @@ class TestBGP(unittest.TestCase):
             self.assertGreater(len(msgs), 0)
         best_route = self.bgp.best_routes[ipaddress.ip_network('1.0.0.0/20')]
         self.assertTrue(best_route.local_pref == 110)
+
+    def test_peer_state_change(self):
+        self.send_announce()
+        self.assertGreater(len(self.bgp.peer_down(self.peerip)), 0)
+

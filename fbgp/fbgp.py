@@ -1,0 +1,58 @@
+"""
+"""
+
+import sys, os, time, traceback
+import json, ipaddress
+import yaml, socket, collections
+import eventlet
+eventlet.monkey_patch()
+
+from .cfg import CONF
+from .utils import get_logger
+
+from ryu.base import app_manager
+from ryu.controller.handler import set_ev_cls
+from ryu.lib import hub
+
+logger = get_logger('fbgp', os.environ.get('FBGP_LOG', None), 'info')
+
+
+class FlowBasedBGP(app_manager.RyuApp):
+    """An application runs on ExaBGP to process BGP routes received from peers."""
+
+    _CONTEXTS = {
+        }
+
+    peers = None
+    faucet_connect = None # interface to Faucet
+    exabgp_connect = None # interface to exabgp
+    server_connect = None # interface to the route controller
+
+    def __init__(self, *args, **kwargs):
+        super(FlowBasedBGP, self).__init__(*args, **kwargs)
+
+    def stop(self):
+        logger.info('%s is stopping...' % self.__class__.__name__)
+        super(FlowBasedBGP, self).stop()
+
+    def initialize(self):
+        logger.info('Initializing fBGP controller')
+        self._load_config()
+
+    def _load_config(self):
+        config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f.read())
+            #TODO: parse config
+
+    def _process_exabgp_msg(self, msg):
+        """Process message received from ExaBGP."""
+        pass
+
+    def _process_faucet_msg(self, msg):
+        """Process message received from Faucet Controller."""
+        pass
+
+    def _process_server_msg(self, msg):
+        """Process message received from Route Controller."""
+        pass

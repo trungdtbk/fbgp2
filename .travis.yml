@@ -7,10 +7,13 @@ python:
 cache:
     pip: true
 
+env:
+    PYTHONPATH=$PYTHONPATH:$TRAVIS_BUILD_DIR/faucet
+
 install:
     - pip3 install -r requirements.txt
     - pip3 install -r test-requirements.txt
-    - tests/install-faucet.sh
+    - pip3 install -r $TRAVIS_BUILD_DIR/faucet/test-requirements.txt
 
 script:
     - "python3 -m pytest --cov=. tests/"

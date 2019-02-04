@@ -1,0 +1,3 @@
+pyyaml
+eventlet
+oslo_config

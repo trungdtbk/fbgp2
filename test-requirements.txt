@@ -1,0 +1,4 @@
+coverage
+pytest
+pytest-cov
+ryu==4.30

@@ -22,12 +22,15 @@ class TestBGP(unittest.TestCase):
             os.environ['FBGP_CONFIG'] = f.name
         self.fbgp = FlowBasedBGP()
         self.fbgp.initialize()
-        self.bgp = BgpRouter(self.fbgp.logger, self.fbgp.peers, path_change_handler=print)
+        self.bgp = BgpRouter(self.fbgp.logger, self.fbgp.peers, self.smoke_path_change_handler)
         self.bgp.logger.setLevel('DEBUG')
         for peerip in ['10.0.1.1', '10.0.2.2']:
             peerip = ipaddress.ip_address(peerip)
             self.bgp.peer_up(peerip)
         self.peerip = ipaddress.ip_address('10.0.1.1')
+
+    def smoke_path_change_handler(self, peer, route):
+        pass
 
     def tearDown(self):
         pass

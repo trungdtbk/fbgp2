@@ -275,7 +275,7 @@ class BgpRouter():
                         if new_best is None:
                             continue
                         self.logger.debug('best path changed: %s' % new_best)
-                        self.notify_path_change(new_best)
+                        self.notify_path_change(peer, new_best)
                         for other_peer in self._other_peers(peer):
                             msgs.extend(self._announce(other_peer, new_best))
 
@@ -285,7 +285,7 @@ class BgpRouter():
                     route = peer.rcv_withdraw(prefix)
                     new_best = self._del_route(route)
                     if new_best:
-                        self.notify_path_change(new_best)
+                        self.notify_path_change(peer, new_best, True)
                         self.logger.debug('best path changed: %s' % new_best)
                     for other_peer in self._other_peers(peer):
                         if new_best:

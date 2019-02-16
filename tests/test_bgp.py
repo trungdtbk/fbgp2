@@ -26,7 +26,8 @@ class TestBGP(unittest.TestCase):
         for peerip, peeras in [('10.0.1.1', 6510), ('10.0.2.2', 4122)]:
             peerip = ipaddress.ip_address(peerip)
             peers[peerip] = BgpPeer(peeras, peerip)
-        self.bgp = BgpRouter(logging.getLogger(), peers, self.smoke_path_change_handler)
+        borders = {}
+        self.bgp = BgpRouter(logging.getLogger(), borders, peers, self.smoke_path_change_handler)
         self.bgp.logger.setLevel('DEBUG')
         for peerip in self.bgp.peers:
             self.bgp.peer_up(peerip)

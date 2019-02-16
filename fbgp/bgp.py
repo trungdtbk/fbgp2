@@ -56,16 +56,18 @@ class Route(object):
 class Border(object):
     """Represent other border routers."""
 
-    def __init__(self, routerid, nexthop, dp_id=None, vlan_vid=None):
+    def __init__(self, routerid, nexthop, dp_id=None, vlan_vid=None, port_no=None):
         self.routerid = routerid
         self.nexthop = nexthop
         self.dp_id = dp_id
         self.vlan_vid = vlan_vid
+        self.port_no = port_no
         self.is_connected = False
 
-    def connected(self, dp_id, vlan_vid):
+    def connected(self, dp_id, vlan_vid, port_no):
         self.dp_id = dp_id
         self.vlan_vid = vlan_vid
+        self.port_no = port_no
         self.is_connected = True
 
     def disconnected(self):

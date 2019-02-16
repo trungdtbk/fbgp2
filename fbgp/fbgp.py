@@ -28,6 +28,8 @@ class FlowBasedBGP(app_manager.RyuApp):
         }
 
     peers = None
+    borders = None
+    routerid = None
     faucet_connect = None # interface to Faucet
     exabgp_connect = None # interface to exabgp
     server_connect = None # interface to the route controller
@@ -51,6 +53,7 @@ class FlowBasedBGP(app_manager.RyuApp):
             config = yaml.safe_load(f.read())
             self.import_policy = {}
             self.export_policy = {}
+            self.routerid = ipaddress.ip_address(config['routerid'])
             self.peers = {}
             for peer_conf in config.pop('peers'):
                 peer_ip = ipaddress.ip_address(peer_conf['peer_ip'])
@@ -60,7 +63,12 @@ class FlowBasedBGP(app_manager.RyuApp):
                                local_as=peer_conf.get('local_as', None),
                                peer_port=peer_conf.get('peer_port', 179))
                 self.peers[peer_ip] = peer
-            self.bgp = BgpRouter(self.logger, self.peers, self.path_change_handler)
+            self.borders = {}
+            for border_conf in config.pop('borders'):
+                routerid = ipaddress.ip_address(border_conf['routerid'])
+                self.borders[routerid] = Border(
+                        routerid=routerid, nexthop=ipaddress.ip_address(border_conf['nexthop']))
+            self.bgp = BgpRouter(self.logger, self.borders, self.peers, self.path_change_handler)
 
     def path_change_handler(self, route):
         # install route to Faucet

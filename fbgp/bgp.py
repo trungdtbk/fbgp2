@@ -53,6 +53,25 @@ class Route(object):
     __repr__ = __str__
 
 
+class Border(object):
+    """Represent other border routers."""
+
+    def __init__(self, routerid, nexthop, dp_id=None, vlan_vid=None):
+        self.routerid = routerid
+        self.nexthop = nexthop
+        self.dp_id = dp_id
+        self.vlan_vid = vlan_vid
+        self.is_connected = False
+
+    def connected(self, dp_id, vlan_vid):
+        self.dp_id = dp_id
+        self.vlan_vid = vlan_vid
+        self.is_connected = True
+
+    def disconnected(self):
+        self.is_connected = False
+
+
 class BgpPeer(object):
     """Representation of a BGP peer. It also keeps info about the attachment point."""
 
@@ -75,6 +94,7 @@ class BgpPeer(object):
         self._rib_out = {} #route announced to peer
         self._candidate_routes = {} #possible routes for the peer
         self.state = 'down'
+        self.is_connected = False
 
     def bgp_session_up(self):
         """BGP session with the peer is up."""
@@ -93,6 +113,10 @@ class BgpPeer(object):
         self.dp_id = dp_id
         self.vlan_vid = vlan_vid
         self.port_no = port_no
+        self.is_connected = True
+
+    def disconnected(self):
+        self.is_connected = False
 
     def rcv_withdraw(self, prefix):
         """Withdraw a route from this peer."""
@@ -149,8 +173,9 @@ class BgpPeer(object):
 class BgpRouter():
     """BGP selection algorithm."""
 
-    def __init__(self, logger, peers, path_change_handler):
+    def __init__(self, logger, borders, peers, path_change_handler):
         self.logger = logger
+        self.borders = borders
         self.peers = peers
         self.notify_path_change = path_change_handler
         self.best_routes = {}
@@ -259,6 +284,7 @@ class BgpRouter():
 
     def process_update(self, peer_ip, update):
         """Process a BGP update received from ExaBGP."""
+        self.logger.info('processing update: %s' % update)
         try:
             msgs = []
             if peer_ip not in self.peers:
@@ -297,3 +323,34 @@ class BgpRouter():
             print(e)
             traceback.print_exc()
         return []
+
+    def process_exabgp_msg(self, msg):
+        self.logger.debug('processing msg from exabgp: %r' % line)
+        if line == 'done':
+            return
+        try:
+            msg = json.loads(line)
+            if msg.get('type') == 'notification':
+                #TODO: handle notification
+                return
+            neighbor = msg.get('neighbor', {})
+            if not neighbor:
+                return
+            local_ip = ipaddress.ip_address(neighbor['address']['local'])
+            peer_ip = ipaddress.ip_address(neighbor['address']['peer'])
+            local_as = neighbor['asn']['local']
+            peer_as = neighbor['asn']['peer']
+            msgs = []
+            if msg.get('type') == 'update' and 'update' in neighbor['message']:
+                update = neighbor['message']['update']
+                msgs = self.process_update(peer_ip, update)
+            elif msg.get('type') == 'state':
+                state = neighbor['state']
+                if state == 'down':
+                    msgs = self.peer_down(peer_ip)
+                elif state == 'up':
+                    msgs = self.peer_up(peer_ip)
+            return msgs
+        except Exception as e:
+            print(line)
+            traceback.print_exc()

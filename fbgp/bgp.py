@@ -73,6 +73,10 @@ class Border(object):
     def disconnected(self):
         self.is_connected = False
 
+    def __str__(self):
+        return 'Border(routerid=%s, nexthop=%, dpid=%s, vid=%s, port_no=%s)' % (
+                self.routerid, self.nexthop, self.dp_id, self.vlan_vid, self.port_no)
+
 
 class BgpPeer(object):
     """Representation of a BGP peer. It also keeps info about the attachment point."""

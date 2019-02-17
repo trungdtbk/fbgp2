@@ -97,7 +97,7 @@ neighbor %s {
                  'exabgp.tcp.bind=' + '0.0.0.0',
                  'exabgp.tcp.port=' + '1179',
                  'exabgp.daemon.daemonize=false',
-                 'exabgp.log.level=DEBUG',
+                 'exabgp.log.level=INFO',
                  'exabgp.log.all=true',
                  'exabgp.log.destination=' + self.exabgp_hook_log,
                  'exabgp', self.exabgp_cfg_file],

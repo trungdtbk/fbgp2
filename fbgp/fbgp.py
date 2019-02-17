@@ -41,6 +41,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         self.logger = get_logger('fbgp',
                 os.environ.get('FBGP_LOG', None),
                 os.environ.get('FBGP_LOG_LEVEL', 'info'))
+        self.faucet_api = kwargs['faucet_experimental_api']
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
@@ -79,13 +80,13 @@ class FlowBasedBGP(app_manager.RyuApp):
             self.bgp = BgpRouter(self.logger, self.borders, self.peers, self.path_change_handler)
             self.logger.info('config loaded')
 
-    def path_change_handler(self, route):
+    def path_change_handler(self, peer, route):
         # install route to Faucet
-        return
+        self.faucet_api.add_route(route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
 
     def _process_exabgp_msg(self, msg):
         """Process message received from ExaBGP."""
-        pass
+        self.bgp.process_exabgp_msg(msg)
 
     def _process_faucet_msg(self, msg):
         """Process message received from Faucet Controller."""

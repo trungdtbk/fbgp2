@@ -199,7 +199,6 @@ class BgpRouter():
                              ('med', operator.gt)]:
                 val1 = getattr(route1, attr)
                 val2 = getattr(route2, attr)
-                self.logger.info(val1, val2)
                 if op(val1, val2):
                     return route1
                 elif op(val2, val1):

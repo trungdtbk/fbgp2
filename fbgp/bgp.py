@@ -1,5 +1,6 @@
 """Implementation of BGP selection algorithm
 """
+import json
 import ipaddress
 import operator
 import collections
@@ -199,6 +200,9 @@ class BgpRouter():
                              ('med', operator.gt)]:
                 val1 = getattr(route1, attr)
                 val2 = getattr(route2, attr)
+                if isinstance(val1, list) and isinstance(val2, list):
+                    val1 = len(val1)
+                    val2 = len(val2)
                 if op(val1, val2):
                     return route1
                 elif op(val2, val1):
@@ -242,7 +246,7 @@ class BgpRouter():
             new_best_route = self._select_best_route(self.loc_rib[prefix])
         else:
             new_best_route = self._select_best_route([best_route, new_route])
-        if new_best_route:
+        if new_best_route and new_best_route != best_route:
             self.best_routes[prefix] = new_best_route
             return new_best_route
         return
@@ -330,11 +334,11 @@ class BgpRouter():
         return []
 
     def process_exabgp_msg(self, msg):
-        self.logger.debug('processing msg from exabgp: %r' % line)
-        if line == 'done':
+        self.logger.info('processing msg from exabgp: %r' % msg)
+        if msg == 'done':
             return
         try:
-            msg = json.loads(line)
+            msg = json.loads(msg)
             if msg.get('type') == 'notification':
                 #TODO: handle notification
                 return
@@ -357,5 +361,5 @@ class BgpRouter():
                     msgs = self.peer_up(peer_ip)
             return msgs
         except Exception as e:
-            print(line)
+            print(msg)
             traceback.print_exc()

@@ -3,19 +3,19 @@ routerid: 10.1.1.1
 
 peers:
 - peer_ip: 10.0.10.1
-  peer_as: 6510
+  peer_as: 1
   local_as: 65000
   local_ip: 10.0.10.253
 - peer_ip: 10.0.10.2
-  peer_as: 4122
+  peer_as: 2
   local_as: 65000
   local_ip: 10.0.10.253
 - peer_ip: 10.0.20.1
-  peer_as: 65000
+  peer_as: 3
   local_as: 65000
   local_ip: 10.0.10.253
 - peer_ip: 10.0.20.2
-  peer_as: 65000
+  peer_as: 4
   local_as: 65000
   local_ip: 10.0.10.253
 

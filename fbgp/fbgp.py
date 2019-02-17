@@ -90,7 +90,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _process_faucet_msg(self, msg):
         """Process message received from Faucet Controller."""
         dpid = msg['dp_id']
-        if 'L2_LEARN' in msg and msg['L2_LEARN']['l3_src_ip']:
+        if 'L2_LEARN' in msg and msg['L2_LEARN']['l3_src_ip'] != 'None':
             l2_learn = msg['L2_LEARN']
             ipa = ipaddress.ip_address(l2_learn['l3_src_ip'])
             vid = l2_learn['vid']

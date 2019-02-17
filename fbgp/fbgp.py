@@ -14,8 +14,9 @@ from ryu.base import app_manager
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
 
-from fbgp.bgp import BgpPeer, BgpRouter
+from fbgp.bgp import BgpPeer, BgpRouter, Border
 from fbgp.policy import Policy
+from fbgp.faucet_connect import FaucetConnect
 
 from faucet import faucet_experimental_api
 from faucet import faucet
@@ -36,7 +37,9 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(FlowBasedBGP, self).__init__(*args, **kwargs)
-        self.logger = get_logger('fbgp', os.environ.get('FBGP_LOG', None), 'info')
+        self.logger = get_logger('fbgp',
+                os.environ.get('FBGP_LOG', None),
+                os.environ.get('FBGP_LOG_LEVEL', 'info'))
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
@@ -46,6 +49,8 @@ class FlowBasedBGP(app_manager.RyuApp):
     def initialize(self, ev=None):
         self.logger.info('Initializing fBGP controller')
         self._load_config()
+        self.faucet_connect = FaucetConnect(self._process_faucet_msg)
+        self.faucet_connect.start()
 
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
@@ -69,6 +74,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 self.borders[routerid] = Border(
                         routerid=routerid, nexthop=ipaddress.ip_address(border_conf['nexthop']))
             self.bgp = BgpRouter(self.logger, self.borders, self.peers, self.path_change_handler)
+            self.logger.info('config loaded')
 
     def path_change_handler(self, route):
         # install route to Faucet
@@ -80,7 +86,26 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _process_faucet_msg(self, msg):
         """Process message received from Faucet Controller."""
-        pass
+        dpid = msg['dp_id']
+        if 'L2_LEARN' in msg and msg['L2_LEARN']['l3_src_ip']:
+            l2_learn = msg['L2_LEARN']
+            ipa = ipaddress.ip_address(l2_learn['l3_src_ip'])
+            vid = l2_learn['vid']
+            port_no = l2_learn['port_no']
+            if ipa in self.peers:
+                peer = self.peers[ipa]
+                if peer.is_connected:
+                    return
+                peer.connected(dpid, vid, port_no)
+                self.logger.info('Peer connected: %s' % peer)
+            else:
+                for border in self.borders.values():
+                    if border.nexthop == ipa:
+                        border.connected(dpid, vid, port_no)
+                        self.logger.info('Border connected: %s' % border)
+        elif 'L2_EXPIRE' in msg:
+            #TODO: handle expire event
+            pass
 
     def _process_server_msg(self, msg):
         """Process message received from Route Controller."""

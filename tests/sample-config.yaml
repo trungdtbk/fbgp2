@@ -13,11 +13,11 @@ peers:
 - peer_ip: 10.0.20.1
   peer_as: 3
   local_as: 65000
-  local_ip: 10.0.10.253
+  local_ip: 10.0.20.253
 - peer_ip: 10.0.20.2
   peer_as: 4
   local_as: 65000
-  local_ip: 10.0.10.253
+  local_ip: 10.0.20.253
 
 borders:
 - routerid: 10.2.2.2

@@ -17,6 +17,7 @@ from ryu.lib import hub
 from fbgp.bgp import BgpPeer, BgpRouter, Border
 from fbgp.policy import Policy
 from fbgp.faucet_connect import FaucetConnect
+from fbgp.exabgp_connect import ExaBgpConnect
 
 from faucet import faucet_experimental_api
 from faucet import faucet
@@ -51,6 +52,8 @@ class FlowBasedBGP(app_manager.RyuApp):
         self._load_config()
         self.faucet_connect = FaucetConnect(self._process_faucet_msg)
         self.faucet_connect.start()
+        self.exabgp_connect = ExaBgpConnect(self._process_exabgp_msg, self.peers, self.routerid)
+        self.exabgp_connect.start()
 
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')

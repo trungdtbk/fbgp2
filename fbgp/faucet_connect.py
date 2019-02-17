@@ -44,7 +44,7 @@ class FaucetConnect():
             self.socket.close()
 
     def _process_faucet_event(self, event):
-        logger.info('received faucet event: %s' % event)
+        logger.debug('received faucet event: %s' % event)
         try:
             event = json.loads(event)
             if event['version'] != 1:

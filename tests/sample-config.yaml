@@ -1,7 +1,26 @@
 ---
-peers:
-- peer_ip: 10.1.1.1
-  peer_as: 6510
-- peer_ip: 10.0.2.2
-  peer_as: 4122
+routerid: 10.1.1.1
 
+peers:
+- peer_ip: 10.0.10.1
+  peer_as: 6510
+  local_as: 65000
+  local_ip: 10.0.10.253
+- peer_ip: 10.0.10.2
+  peer_as: 4122
+  local_as: 65000
+  local_ip: 10.0.10.253
+- peer_ip: 10.0.20.1
+  peer_as: 65000
+  local_as: 65000
+  local_ip: 10.0.10.253
+- peer_ip: 10.0.20.2
+  peer_as: 65000
+  local_as: 65000
+  local_ip: 10.0.10.253
+
+borders:
+- routerid: 10.2.2.2
+  nexthop: 10.0.30.2
+- routerid: 10.3.3.3
+  nexthop: 10.0.30.3

@@ -80,13 +80,20 @@ class FlowBasedBGP(app_manager.RyuApp):
             self.bgp = BgpRouter(self.logger, self.borders, self.peers, self.path_change_handler)
             self.logger.info('config loaded')
 
-    def path_change_handler(self, peer, route):
+    def path_change_handler(self, peer, route, withdraw=False):
         # install route to Faucet
-        self.faucet_api.add_route(route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
+        if withdraw:
+            self.faucet_api.del_route(
+                    route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
+        else:
+            self.faucet_api.add_route(
+                    route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
 
     def _process_exabgp_msg(self, msg):
         """Process message received from ExaBGP."""
-        self.bgp.process_exabgp_msg(msg)
+        exabgp_msgs = self.bgp.process_exabgp_msg(msg)
+        for msg in exabgp_msgs:
+            self.exabgp_connect.send(msg)
 
     def _process_faucet_msg(self, msg):
         """Process message received from Faucet Controller."""

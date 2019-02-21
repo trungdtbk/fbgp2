@@ -1,5 +1,4 @@
 FROM mikenowak/exabgp
-MAINTAINER Mike Nowak <https://github.com/mikenowak>
 
 RUN apk --no-cache add py-pip python3-dev gcc musl-dev
 RUN mkdir /fbgp && mkdir /etc/fbgp && mkdir /var/log/fbgp

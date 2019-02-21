@@ -23,7 +23,7 @@ class Route(object):
     def to_exabgp(self, peer_ip=None, is_withdraw=False):
         line = ''
         if peer_ip:
-            line = 'neighbour %s' % peer_ip
+            line = 'neighbor %s' % peer_ip
         if is_withdraw:
             line += ' withdraw route %s' % self.prefix
         else:
@@ -335,16 +335,16 @@ class BgpRouter():
 
     def process_exabgp_msg(self, msg):
         self.logger.info('processing msg from exabgp: %r' % msg)
-        if msg == 'done':
-            return
+        if msg in ['done', 'error']:
+            return []
         try:
             msg = json.loads(msg)
             if msg.get('type') == 'notification':
                 #TODO: handle notification
-                return
+                return []
             neighbor = msg.get('neighbor', {})
             if not neighbor:
-                return
+                return []
             local_ip = ipaddress.ip_address(neighbor['address']['local'])
             peer_ip = ipaddress.ip_address(neighbor['address']['peer'])
             local_as = neighbor['asn']['local']

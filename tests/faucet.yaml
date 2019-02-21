@@ -1,0 +1,42 @@
+vlans:
+    vlan10:
+        vid: 10
+        faucet_vips: ['10.0.10.254/24']
+    vlan20:
+        vid: 20
+        faucet_vips: ['10.0.20.254/24']
+    vlan30:
+        vid: 30
+        faucet_vips: ['10.0.30.254/24']
+
+routers:
+    router-1:
+        vlans: [vlan10, vlan20, vlan30]
+
+dps:
+    s1:
+        dp_id: 1
+        hardware: 'Open vSwitch'
+        interfaces:
+            1:
+                tagged_vlans: [vlan10, vlan20, vlan30]
+            2: 
+                native_vlan: vlan10
+            3:
+                native_vlan: vlan10
+            4:
+                native_vlan: vlan10
+    s2:
+        dp_id: 2
+        hardware: 'Open vSwitch'
+        global_vlan: 100
+        interfaces:
+            1:
+                tagged_vlans: [vlan10, vlan20, vlan30]
+            2: 
+                native_vlan: vlan20
+            3:
+                native_vlan: vlan20
+            4:
+                native_vlan: vlan20
+

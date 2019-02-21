@@ -1,0 +1,30 @@
+---
+routerid: 10.1.1.1
+
+peers:
+- peer_ip: 10.0.10.1
+  peer_as: 1
+  local_as: 65000
+  local_ip: 10.0.10.253
+- peer_ip: 10.0.10.2
+  peer_as: 2
+  local_as: 65000
+  local_ip: 10.0.10.253
+- peer_ip: 10.0.20.1
+  peer_as: 3
+  local_as: 65000
+  local_ip: 10.0.20.253
+- peer_ip: 10.0.20.2
+  peer_as: 4
+  local_as: 65000
+  local_ip: 10.0.20.253
+- peer_ip: 172.17.0.1
+  peer_as: 65000
+  local_as: 65000
+  local_ip: 172.17.0.3
+
+borders:
+- routerid: 10.2.2.2
+  nexthop: 10.0.30.2
+- routerid: 10.3.3.3
+  nexthop: 10.0.30.3

@@ -1,5 +1,8 @@
 """Start ExaBGP as subprocess, communicate with it via netcat to send route update
 """
+import eventlet
+eventlet.monkey_patch()
+
 import subprocess
 import shutil
 import time
@@ -8,13 +11,11 @@ import signal
 import os
 import sys
 import socket, logging
-import eventlet
-eventlet.monkey_patch()
 
 from multiprocessing.connection import Listener
 
-from .utils import get_logger
-from .cfg import CONF
+from fbgp.utils import get_logger
+from fbgp.cfg import CONF
 
 
 class ExaBgpConnect():

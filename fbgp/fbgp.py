@@ -1,23 +1,23 @@
 """
 """
+import eventlet
+eventlet.monkey_patch()
 
 import sys, os, time, traceback
 import json, ipaddress
 import yaml, socket, collections
-import eventlet
-eventlet.monkey_patch()
-
-from .cfg import CONF
-from .utils import get_logger
 
 from ryu.base import app_manager
 from ryu.controller.handler import set_ev_cls
 from ryu.lib import hub
 
+from fbgp.cfg import CONF
+from fbgp.utils import get_logger
 from fbgp.bgp import BgpPeer, BgpRouter, Border
 from fbgp.policy import Policy
 from fbgp.faucet_connect import FaucetConnect
 from fbgp.exabgp_connect import ExaBgpConnect
+from fbgp.server_connect import ServerConnect
 
 from faucet import faucet_experimental_api
 from faucet import faucet
@@ -54,7 +54,8 @@ class FlowBasedBGP(app_manager.RyuApp):
         for name, connector_cls, kwargs in [
                 ('faucet_connect', FaucetConnect, {'handler': self._process_faucet_msg}),
                 ('exabgp_connect', ExaBgpConnect, {'handler': self._process_exabgp_msg,
-                                                   'peers': self.peers, 'routerid': self.routerid})]:
+                                                   'peers': self.peers, 'routerid': self.routerid}),
+                ('server_connect', ServerConnect, {'handler': self._process_server_msg})]:
             connector = connector_cls(**kwargs)
             connector.start()
             setattr(self, name, connector)

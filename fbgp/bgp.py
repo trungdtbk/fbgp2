@@ -1,12 +1,13 @@
 """Implementation of BGP selection algorithm
 """
+from fbgp.policy import Policy
+
 import json
 import ipaddress
 import operator
 import collections
 import traceback
 
-from .policy import Policy
 
 class Route:
     """Represent a BGP route to a prefix."""

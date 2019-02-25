@@ -1,4 +1,4 @@
-from .utils import get_logger
+from fbgp.utils import get_logger
 
 import os, socket, json
 import traceback

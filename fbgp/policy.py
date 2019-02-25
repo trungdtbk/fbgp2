@@ -1,5 +1,7 @@
+import re
+import ipaddress
 
-class Policy(object):
+class Policy:
     """A policy has a filter expression and a list of actions
     Take a route object (prefix, as_path,...), check if it match the filter,
     then apply actions and return the modified route object
@@ -29,7 +31,7 @@ class Policy(object):
     __repr__ = __str__
 
 
-class Filter(object):
+class Filter:
     @classmethod
     def parse(cls, filter_str):
         """A filter has a RPSL-like format. For example { 1.0.0.0/20^+ }."""
@@ -199,7 +201,7 @@ class FilterPrefixRange(Filter):
         return "%s(%s)" % (self.__class__.__name__, self.prefix_range)
 
 
-class Action(object):
+class Action:
     """an action syntax:
     key = value or key.method(value). Ex:
     med = 100; pref=120; aspath.prepend(AS123); community .= {345:80}
@@ -243,4 +245,243 @@ class Action(object):
 
     def __str__(self):
         return '<%s %s=%s>' % (self.__class__.__name__, self.key, self.value)
+
+
+class ActionSetPref(Action):
+    @classmethod
+    def parse(cls, line):
+        key, value = line.split('=')
+        return cls(key, int(value))
+
+
+class ActionSetMed(Action):
+    pass
+
+
+class ActionSetOrigin(Action):
+    pass
+
+
+class ActionSetNexthop(Action):
+    pass
+
+
+class ActionCommunity(Action):
+    @classmethod
+    def parse(cls, line):
+        raise Exception('Not supported')
+
+
+class ActionASpathPrepend(Action):
+    def __init__(self, key, method, value):
+        self.action_key = key
+        self.action_value = value
+        self.method = method
+
+    @classmethod
+    def parse(cls, line):
+        key, method = line.split(';|.')
+        try:
+            method = int(method)
+        except:
+            pass
+        instance = None
+        if isinstance(method, int):
+            instance = cls(key, 'set', method)
+        elif 'prepend' in method:
+            _, method = method.split('prepend')
+            method = method.replace('(', '').replace(')', '')
+            method = list(map(int, method.split(',')))
+            instance = cls(key, 'prepend', method)
+        return instance
+
+
+class ASPathRegex:
+
+    def __init__(self, regex):
+        self.regex = regex
+
+    @classmethod
+    def parse(cls, line):
+        """example: '<AS1>', '<^AS1>', '<AS2$>, '<^AS1 AS2 AS3$>', '<^AS1 .* AS2$>'
+        """
+        def to_regex_str(line):
+            # turn 2* to (2(\s)*)*, 2{2,4} to (2(\s)*){2,4}, [1 2]{2} to (1 2(\s)*){2}
+            for op in ['*', '?', '+', '{']:
+                if op in line:
+                    line = line.replace(op, '(\s)*)%s' % op)
+                    break
+            if '\s' not in line:
+                line += '(\s)*)'
+            line = '(' + line
+            return line
+
+        line = line.lower().replace('<', '').replace('>','').replace('as', '')
+        parts = line.split()
+        if len(parts) == 1:
+            part = parts[0]
+            if '^' not in part and '$' not in part:
+                part = '^' + part + '$'
+            elif '$' in part:
+                part = '.*' + part
+            return cls(re.compile(part))
+        else:
+            whole = ''
+            for part in parts:
+                # turn [2 3]{2} to (2(\s)*){2}|(3(\s)*){2}
+                if '[' in part:
+                    # turn [2 3]{2} to 2{2}, 3{2}, 2 3, 3 2
+                    part = part.replace('[', '')
+                    pref, suf = part.split(']')
+                    comp = []
+                    p = pref.split()
+                    for i in p:
+                        comp.append(to_regex_str(i+suf))
+                    # TODO: much complex than I thought. Do it later
+                    raise Exception('Not supported yet: %s' % part)
+                whole += to_regex_str(part)
+            return cls(re.compile(whole))
+        return cls(None)
+
+    def contains(self, aspath):
+        # aspath = '1 2 300 300 300 400 400 500'
+        #check if match the aspath
+        line = ' '.join(aspath)
+        if self.regex and self.regex.match(line):
+            return True
+        return False
+
+    def __str__(self):
+        return "%s" % self.regex
+    __repr__ = __str__
+
+
+class ASNumber(object):
+
+    def __init__(self, asn):
+        self.asn = asn
+
+    @classmethod
+    def parse(cls, line):
+        asn = int(re.findall(r'\d+', line))
+        return cls(asn)
+
+    def __eq__(self, other):
+        return self.asn == other.asn
+
+    def __str__(self):
+        return "AS%d" % self.asn
+
+class IPv4Adress(ipaddress.IPv4Address):
+
+    @classmethod
+    def parse(cls, address):
+        """a valid address (str) should look like: 128.9.128.5 """
+        return cls(address)
+
+class IPv4Prefix(ipaddress.IPv4Network):
+    @classmethod
+    def parse(cls, prefix):
+        """a valid prefix (str) should look like: 128.9.128.5/32 """
+        return cls(prefix)
+
+
+class ASSet(object):
+    def __init__(self, name, members=None):
+        self.name = name
+        self.members = members
+
+
+class PrefixRange(object):
+    """A prefix range representation in policy config.
+    Ex. '{1.0.0.0/12^+}' means a range of prefixes from 1.0.0.0/12 to 1.0.0.0/32.
+    """
+
+    def __init__(self, prefix, n, m):
+        self.prefix = IPv4Prefix(prefix)
+        self.n = n # lower bound
+        self.m = m # higher bound
+
+    def __eq__(self, other):
+        return (self.prefix == other.prefix and
+                self.n == other.n and self.m == other.m)
+
+    def __le__(self, other):
+        return (self.prefix <= other.prefix)
+
+    def contains(self, prefix):
+        """Test if a prefix belongs to this range
+        Args:
+            prefix (str or ipaddress.IPv4Prefix): a prefix to be tested
+        Returns:
+            True if the prefix is within the range
+        """
+        return (prefix in self.prefix and
+                prefix.prefixlen <= self.m and
+                prefix.prefixlen >= self.n)
+
+    @classmethod
+    def parse(cls, line):
+        """A valid prefix range should look like: '128.9.0.0/16', '128.6.0.0/16^-,
+        '128.6.0.0/16^+', '128.6.0.0/16^20-24' or '128.6.0.0/20'
+        """
+        try:
+            prefix = re.findall(r'\d+.\d+.\d+.\d+/\d+', line)[0]
+            prefix = prefix.strip()
+            prefix = ipaddress.ip_network(prefix)
+            ops = re.split(r'\^', line)
+            n = m = 0
+            if len(ops) == 2:
+                op = ops[1]
+                if op == '-':
+                    n = prefix.prefixlen - 1
+                    m = 32 if prefix.version == 4 else 128
+                elif op == '+':
+                    n = prefix.prefixlen
+                    m = 32 if prefix.version == 4 else 128
+                elif '-' in op:
+                    n,m = op.split('-')
+                    n = int(n)
+                    m = int(m)
+                else:
+                    n = int(op)
+                    m = 32 if prefix.version == 4 else 128
+            else:
+                n = m = prefix.prefixlen
+            return cls(prefix, n, m)
+        except:
+            raise TypeError('The prefix range has incorrect format %s' % line)
+
+    def __hash__(self):
+        return hash(frozenset((self.prefix, self.m, self.n)))
+
+    def __str__(self):
+        return "%s[prefix=%s, n=%d,m=%d]" % (self.__class__.__name__,
+                self.prefix, self.n, self.m)
+    __repr__ = __str__
+
+
+class PrefixSet:
+
+    def __init__(self, prefix_set):
+        """prefix_set (set) is a set of prefix, e.g. ['1.0.0.0/20', '2.0.0.0/16']"""
+        self.prefix_set = prefix_set
+
+    def contains(self, prefix):
+        for prefixrange in self.prefix_set:
+            if prefixrange.contains(prefix):
+                return True
+        return False
+
+    @classmethod
+    def parse(cls, line):
+        """line should look like: '{5.0.0.0/8^+, 128.9.0.0/16^-, 30.0.0.0/^24-28}'"""
+        line = line.replace('{','').replace('}','').replace(' ','')
+        range_set = set()
+        for r in line.split(','):
+            range_set.add(PrefixRange.parse(r))
+        return cls(range_set)
+
+    def __str__(self):
+        return "%s[prefix set=[%s]]" % (self.__class__.__name__, self.prefix_set)
 

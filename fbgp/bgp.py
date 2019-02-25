@@ -8,7 +8,7 @@ import traceback
 
 from .policy import Policy
 
-class Route(object):
+class Route:
     """Represent a BGP route to a prefix."""
 
     def __init__(self, prefix, nexthop, **attributes):
@@ -28,7 +28,7 @@ class Route(object):
             line += ' withdraw route %s' % self.prefix
         else:
             line += ' announce route %s next-hop %s as-path %s' % (
-                    self.prefix, self.nexthop, self.as_path)
+                self.prefix, self.nexthop, self.as_path)
         for name, attr in [
                 ('origin', 'origin'), ('med', 'med'), ('local_pref', 'local-preference'),
                 ('community', 'community')]:
@@ -54,15 +54,16 @@ class Route(object):
     def __str__(self):
         return "<Route %s->%s (local-pref=%s, as-path=%s, " \
                 "med=%s, origin=%s, community=%s>" % (
-                        self.prefix, self.nexthop, self.local_pref,
-                        self.as_path, self.med, self.origin, self.community)
+                    self.prefix, self.nexthop, self.local_pref,
+                    self.as_path, self.med, self.origin, self.community)
     __repr__ = __str__
 
 
-class Border(object):
+class Border:
     """Represent other border routers."""
 
     def __init__(self, routerid, nexthop, dp_id=None, vlan_vid=None, port_no=None):
+        """initialize a sdn-enabled border router."""
         self.routerid = routerid
         self.nexthop = nexthop
         self.dp_id = dp_id
@@ -80,11 +81,11 @@ class Border(object):
         self.is_connected = False
 
     def __str__(self):
-        return 'Border(routerid=%s, nexthop=%, dpid=%s, vid=%s, port_no=%s)' % (
-                self.routerid, self.nexthop, self.dp_id, self.vlan_vid, self.port_no)
+        return 'Border(routerid=%s, nexthop=%s, dpid=%s, vid=%s, port_no=%s)' % (
+            self.routerid, self.nexthop, self.dp_id, self.vlan_vid, self.port_no)
 
 
-class BgpPeer(object):
+class BgpPeer:
     """Representation of a BGP peer. It also keeps info about the attachment point."""
 
     def __init__(self, peer_as, peer_ip, local_as=None, local_ip=None, peer_port=179,
@@ -128,6 +129,7 @@ class BgpPeer(object):
         self.is_connected = True
 
     def disconnected(self):
+        """The peer is disconnected physically."""
         self.is_connected = False
 
     def rcv_withdraw(self, prefix):
@@ -203,7 +205,7 @@ class BgpRouter():
             if route2 is None:
                 return route1
 
-            for attr, op in [('local_pref', operator.gt) , ('as_path', operator.lt),
+            for attr, op in [('local_pref', operator.gt), ('as_path', operator.lt),
                              ('med', operator.gt)]:
                 val1 = getattr(route1, attr)
                 val2 = getattr(route2, attr)
@@ -212,13 +214,12 @@ class BgpRouter():
                     val2 = len(val2)
                 if op(val1, val2):
                     return route1
-                elif op(val2, val1):
+                if op(val2, val1):
                     return route2
 
             if route1 is not None:
                 return route1
-            else:
-                return route2
+            return route2
 
         best_route = None
         for route in routes:
@@ -227,19 +228,19 @@ class BgpRouter():
 
     def _del_route(self, route):
         if not route:
-            return
+            return None
         routes = self.loc_rib[route.prefix]
         routes.discard(route)
         best_route = self.best_routes.get(route.prefix, None)
         if route == best_route:
-            if len(routes) == 0:
-                del self.best_routes[route.prefix]
-                return best_route
-            else:
+            if routes:
                 new_best = self._select_best_route(routes)
                 if new_best:
                     self.best_routes[new_best.prefix] = new_best
                     return new_best
+            else:
+                del self.best_routes[route.prefix]
+                return best_route
         return None
 
     def _add_route(self, new_route):
@@ -284,14 +285,16 @@ class BgpRouter():
     def _other_peers(self, peer):
         return [other_peer for other_peer in self.peers.values() if other_peer != peer]
 
-    def _announce(self, peer, route):
+    @staticmethod
+    def _announce(peer, route):
         msgs = []
         route = peer.announce(route)
         if route:
             msgs.append(route.to_exabgp(peer.peer_ip))
         return msgs
 
-    def _withdraw(self, peer, route):
+    @staticmethod
+    def _withdraw(peer, route):
         msgs = []
         route = peer.withdraw(route)
         if route:

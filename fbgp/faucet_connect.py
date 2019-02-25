@@ -1,9 +1,10 @@
+from .utils import get_logger
+
 import os, socket, json
 import traceback
 import eventlet
 eventlet.monkey_patch()
 
-from .utils import get_logger
 logger = get_logger('fbgp.faucet_connect')
 
 class FaucetConnect():

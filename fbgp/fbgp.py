@@ -51,10 +51,13 @@ class FlowBasedBGP(app_manager.RyuApp):
     def initialize(self, ev=None):
         self.logger.info('Initializing fBGP controller')
         self._load_config()
-        self.faucet_connect = FaucetConnect(self._process_faucet_msg)
-        self.faucet_connect.start()
-        self.exabgp_connect = ExaBgpConnect(self._process_exabgp_msg, self.peers, self.routerid)
-        self.exabgp_connect.start()
+        for name, connector_cls, kwargs in [
+                ('faucet_connect', FaucetConnect, {'handler': self._process_faucet_msg}),
+                ('exabgp_connect', ExaBgpConnect, {'handler': self._process_exabgp_msg,
+                                                   'peers': self.peers, 'routerid': self.routerid})]:
+            connector = connector_cls(**kwargs)
+            connector.start()
+            setattr(self, name, connector)
 
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')

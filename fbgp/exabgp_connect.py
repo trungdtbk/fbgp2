@@ -1,6 +1,12 @@
 """Start ExaBGP as subprocess, communicate with it via netcat to send route update
 """
-import subprocess, shutil, time, traceback, signal, os, sys
+import subprocess
+import shutil
+import time
+import traceback
+import signal
+import os
+import sys
 import socket, logging
 import eventlet
 eventlet.monkey_patch()
@@ -44,8 +50,8 @@ neighbor %s {
 
     def __init__(self, handler, peers, routerid):
         self.logger = get_logger(
-                'fbgp.exabgp',
-                os.environ.get('FBGP_EXABGP_CONNECT_LOG', '/var/log/fbgp/exabgp_connect.log'))
+            'fbgp.exabgp',
+            os.environ.get('FBGP_EXABGP_CONNECT_LOG', '/var/log/fbgp/exabgp_connect.log'))
         self.handler = handler
         self.peers = peers
         self.routerid = routerid
@@ -88,21 +94,17 @@ neighbor %s {
             f.write(self.config % (hook_loc, self.sock_path))
             for peer in self.peers.values():
                 peer_config = self.peer_config % (
-                        peer.peer_ip, peer.peer_port, peer.peer_as,
-                        peer.local_ip, peer.local_as, self.routerid)
+                    peer.peer_ip, peer.peer_port, peer.peer_as,
+                    peer.local_ip, peer.local_as, self.routerid)
                 f.write(peer_config + '\n')
         self.logger.info('start ExaBGP subprocess')
         self.exabgp = subprocess.Popen(
-                ['env',
-                 'exabgp.tcp.bind=' + '0.0.0.0',
-                 'exabgp.tcp.port=' + '1179',
-                 'exabgp.daemon.daemonize=false',
-                 'exabgp.daemon.user=root',
-                 'exabgp.log.level=INFO',
-                 'exabgp.log.all=true',
-                 'exabgp.log.destination=' + self.exabgp_hook_log,
-                 'exabgp', self.exabgp_cfg_file],
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            ['env', 'exabgp.tcp.bind=' + '0.0.0.0', 'exabgp.tcp.port=' + '1179',
+             'exabgp.daemon.daemonize=false', 'exabgp.daemon.user=root',
+             'exabgp.log.level=DEBUG', 'exabgp.log.all=true',
+             'exabgp.log.destination=' + self.exabgp_hook_log,
+             'exabgp', self.exabgp_cfg_file],
+             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             (dout, derr) = self.exabgp.communicate(timeout=10)
             self.logger.info(derr)

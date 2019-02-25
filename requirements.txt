@@ -1,3 +1,5 @@
 pyyaml
 eventlet
 oslo.config
+ryu
+twisted

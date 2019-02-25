@@ -23,7 +23,7 @@ class TestBGP(unittest.TestCase):
             f.write(CONFIG)
             os.environ['FBGP_CONFIG'] = f.name
         peers = {}
-        for peerip, peeras in [('10.0.1.1', 6510), ('10.0.2.2', 4122)]:
+        for peerip, peeras in [('10.0.1.1', 6510), ('10.0.2.2', 4122), ('10.10.10.1', 65000)]:
             peerip = ipaddress.ip_address(peerip)
             peers[peerip] = BgpPeer(peeras, peerip, 65000)
         borders = {}
@@ -72,12 +72,13 @@ class TestBGP(unittest.TestCase):
     def test_process_update(self):
         for func in ['send_announce', 'send_withdraw']:
             msgs = getattr(self, func)()
-            peer2 = self.bgp.peers[ipaddress.ip_address('10.0.2.2')]
-            self.assertEqual(len(peer2._rib_out), 2, 'No route advertised to peer 2')
-            print(peer2._rib_out)
-            for prefix, route in peer2._rib_out.items():
-                self.assertTrue(1 in route.as_path)
-                self.assertTrue(65000 in route.as_path)
+            for peerip, local_pref in [('10.0.2.2', None), ('10.10.10.1', 100)]:
+                peer = self.bgp.peers[ipaddress.ip_address(peerip)]
+                self.assertEqual(len(peer._rib_out), 2, 'No route advertised to peer')
+                for prefix, route in peer._rib_out.items():
+                    self.assertTrue(1 in route.as_path)
+                    self.assertTrue(65000 in route.as_path)
+                    self.assertTrue(route.local_pref == local_pref)
             self.assertGreater(len(msgs), 0, 'No output messages seen')
 
     def test_bgp_selection(self):

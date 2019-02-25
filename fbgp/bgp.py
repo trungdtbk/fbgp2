@@ -29,6 +29,11 @@ class Route(object):
         else:
             line += ' announce route %s next-hop %s as-path %s' % (
                     self.prefix, self.nexthop, self.as_path)
+        for name, attr in [
+                ('origin', 'origin'), ('med', 'med'), ('local_pref', 'local-preference'),
+                ('community', 'community')]:
+            if getattr(self, name) is not None:
+                line += ' %s %s' % (attr, getattr(self, name))
         return line
 
     def copy(self):
@@ -153,6 +158,8 @@ class BgpPeer(object):
         out = self.export_policy.evaluate(route.copy())
         if out:
             out.as_path = [self.local_as] + out.as_path
+            if self.local_as != self.peer_as:
+                out.local_pref = None
             self._rib_out[out.prefix] = out
         return out
 

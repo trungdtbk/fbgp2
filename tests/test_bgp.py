@@ -25,7 +25,7 @@ class TestBGP(unittest.TestCase):
         peers = {}
         for peerip, peeras in [('10.0.1.1', 6510), ('10.0.2.2', 4122)]:
             peerip = ipaddress.ip_address(peerip)
-            peers[peerip] = BgpPeer(peeras, peerip)
+            peers[peerip] = BgpPeer(peeras, peerip, 65000)
         borders = {}
         self.bgp = BgpRouter(logging.getLogger(), borders, peers, self.smoke_path_change_handler)
         self.bgp.logger.setLevel('DEBUG')
@@ -53,7 +53,7 @@ class TestBGP(unittest.TestCase):
         if announce is None:
             announce = {'ipv4 unicast': {'10.0.1.1': [{'nlri': '1.0.0.0/20'}, {'nlri': '2.0.0.0/21'}]}}
         if attribute is None:
-            attribute = {'local-pref': 100, 'as_path': [1,2,3]}
+            attribute = {'local-pref': 100, 'as-path': [1,2,3]}
         return self.send_update(announce=announce, attribute=attribute)
 
     def send_withdraw(self, withdraw=None):
@@ -72,11 +72,17 @@ class TestBGP(unittest.TestCase):
     def test_process_update(self):
         for func in ['send_announce', 'send_withdraw']:
             msgs = getattr(self, func)()
+            peer2 = self.bgp.peers[ipaddress.ip_address('10.0.2.2')]
+            self.assertEqual(len(peer2._rib_out), 2, 'No route advertised to peer 2')
+            print(peer2._rib_out)
+            for prefix, route in peer2._rib_out.items():
+                self.assertTrue(1 in route.as_path)
+                self.assertTrue(65000 in route.as_path)
             self.assertGreater(len(msgs), 0, 'No output messages seen')
 
     def test_bgp_selection(self):
-        attribute1 = {'local-pref': 100}
-        attribute2 = {'local-pref': 110}
+        attribute1 = {'local-preference': 100}
+        attribute2 = {'local-preference': 110}
         for attr in [attribute1, attribute2]:
             msgs = self.send_announce(attribute=attr)
             self.assertGreater(len(msgs), 0)

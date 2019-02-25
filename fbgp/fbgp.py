@@ -79,6 +79,12 @@ class FlowBasedBGP(app_manager.RyuApp):
                         routerid=routerid, nexthop=ipaddress.ip_address(border_conf['nexthop']))
             self.bgp = BgpRouter(self.logger, self.borders, self.peers, self.path_change_handler)
             self.logger.info('config loaded')
+            self._just_for_test()
+
+    def _just_for_test(self):
+        """try to add some routes to Facuet."""
+        self.faucet_api.add_route('100.0.0.0/24', '10.0.20.1', dpid=2, vid=20)
+        self.faucet_api.add_route('100.0.0.0/24', '10.0.20.2', dpid=2, vid=20, pathid=2)
 
     def path_change_handler(self, peer, route, withdraw=False):
         # install route to Faucet
@@ -108,12 +114,12 @@ class FlowBasedBGP(app_manager.RyuApp):
                 if peer.is_connected:
                     return
                 peer.connected(dpid, vid, port_no)
-                self.logger.info('Peer connected: %s' % peer)
+                self.logger.info('Peer %s (%s) is connected' % (peer.peer_ip, peer.peer_as))
             else:
                 for border in self.borders.values():
                     if border.nexthop == ipa:
                         border.connected(dpid, vid, port_no)
-                        self.logger.info('Border connected: %s' % border)
+                        self.logger.info('Border %s is connected' % border.routerid)
         elif 'L2_EXPIRE' in msg:
             #TODO: handle expire event
             pass

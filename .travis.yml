@@ -8,7 +8,7 @@ cache:
     pip: true
 
 env:
-    - PYTHONPATH=$PYTHONPATH:$TRAVIS_BUILD_DIR/faucet
+    - PYTHONPATH=$PYTHONPATH:$TRAVIS_BUILD_DIR/faucet:$TRAVIS_BUILD_DIR
 
 install:
     - pip3 install -r requirements.txt

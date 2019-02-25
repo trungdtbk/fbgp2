@@ -1,4 +1,5 @@
 coverage
 pytest==4.2.0
 pytest-cov
+pytest-pylint
 ryu==4.30

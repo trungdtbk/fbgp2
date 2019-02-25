@@ -17,3 +17,4 @@ install:
 
 script:
     - "python3 -m pytest --cov=. tests/"
+    - "py.test --pylint ./"

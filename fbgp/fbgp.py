@@ -83,12 +83,6 @@ class FlowBasedBGP(app_manager.RyuApp):
                         routerid=routerid, nexthop=ipaddress.ip_address(border_conf['nexthop']))
             self.bgp = BgpRouter(self.logger, self.borders, self.peers, self.path_change_handler)
             self.logger.info('config loaded')
-            self._just_for_test()
-
-    def _just_for_test(self):
-        """try to add some routes to Facuet."""
-        self.faucet_api.add_route('100.0.0.0/24', '10.0.20.1', dpid=2, vid=20)
-        self.faucet_api.add_route('100.0.0.0/24', '10.0.20.2', dpid=2, vid=20, pathid=2)
 
     def path_change_handler(self, peer, route, withdraw=False):
         # install route to Faucet

@@ -14,10 +14,10 @@ class Route(object):
     def __init__(self, prefix, nexthop, **attributes):
         self.prefix = prefix
         self.nexthop = nexthop
-        self.local_pref = attributes.get('local-pref', 100)
-        self.as_path = attributes.get('as-path', [])
-        self.med = attributes.get('med', 0)
-        self.origin = attributes.get('origin', 'incomplete')
+        self.local_pref = attributes.get('local_pref') or 100
+        self.as_path = attributes.get('as_path') or []
+        self.med = attributes.get('med') or 0
+        self.origin = attributes.get('origin') or 'incomplete'
         self.community = attributes.get('community')
 
     def to_exabgp(self, peer_ip=None, is_withdraw=False):
@@ -301,6 +301,11 @@ class BgpRouter():
             peer = self.peers[peer_ip]
             if 'announce' in update and 'ipv4 unicast' in update['announce']:
                 attributes = update['attribute']
+                for name, attr in [
+                        ('origin', 'origin'), ('igp', 'igp'), ('as_path', 'as-path'),
+                        ('med', 'med'), ('community', 'communities'),
+                        ('local_pref', 'local-preference')]:
+                    attributes[name] = update['attribute'].get(attr)
                 for nexthop, nlris in update['announce']['ipv4 unicast'].items():
                     nexthop = ipaddress.ip_address(nexthop)
                     for prefix in nlris:

@@ -130,4 +130,13 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _process_server_msg(self, msg):
         """Process message received from Route Controller."""
-        pass
+        msg_type = msg['msg_type']
+        if msg_type == 'server_connected':
+            #TODO: process server connected event
+            self.logger.info('Connected to server: %s' % msg['msg'])
+        elif msg_type == 'server_disconnected':
+            #TODO: process server disconnected event
+            self.logger.info('Disconnected from server: %s' % msg['msg'])
+        elif msg_type == 'server_command':
+            #TODO: process server commands
+            self.logger.info('Receive msg from server: %s' % msg['msg'])

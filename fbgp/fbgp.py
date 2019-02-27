@@ -41,6 +41,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     faucet_connect = None # interface to Faucet
     exabgp_connect = None # interface to exabgp
     server_connect = None # interface to the route controller
+    current_pathid = 0
 
     def __init__(self, *args, **kwargs):
         super(FlowBasedBGP, self).__init__(*args, **kwargs)
@@ -48,6 +49,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 os.environ.get('FBGP_LOG', None),
                 os.environ.get('FBGP_LOG_LEVEL', 'info'))
         self.faucet_api = kwargs['faucet_experimental_api']
+        self.nexthop_to_pathid = {}
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
@@ -90,6 +92,15 @@ class FlowBasedBGP(app_manager.RyuApp):
             self.bgp = BgpRouter(self.borders, self.peers, self.path_change_handler)
             self.logger.info('config loaded')
 
+    def _get_pathid(self, nexthop):
+        """Return a unique pathid for a nexthop."""
+        if nexthop in self.nexthop_to_pathid:
+            return self.nexthop_to_pathid[nexthop]
+        else:
+            self.current_pathid += 1
+            self.nexthop_to_pathid[nexthop] = self.current_pathid
+            return self.current_pathid
+
     def path_change_handler(self, peer, route, withdraw=False):
         # install route to Faucet
         if withdraw:
@@ -110,8 +121,8 @@ class FlowBasedBGP(app_manager.RyuApp):
             if peer.is_connected:
                 msg = {
                         'msg_type': 'nexthop_up', 'routerid': str(self.routerid),
-                        'nexthop': str(peer.peer_ip), 'pathid': 1, 'dp_id': peer.dp_id,
-                        'port_no': peer.port_no, 'vlan_vid': peer.vlan_vid}
+                        'nexthop': str(peer.peer_ip), 'pathid': self._get_pathid(peer.peer_ip),
+                        'dp_id': peer.dp_id, 'port_no': peer.port_no, 'vlan_vid': peer.vlan_vid}
                 self._send_to_server(msg)
             for route in peer.routes():
                 self._notify_route_change(peer.peer_ip, route)
@@ -145,8 +156,9 @@ class FlowBasedBGP(app_manager.RyuApp):
         method = None
         msg = {}
         if state == 'up':
-            msg = {'msg_type': 'peer_up', 'peer_ip': str(peer_ip), 'peer_as': peer.peer_as,
-                   'local_ip': str(self.routerid), 'local_as': peer.local_as, 'state': 'up'}
+            msg = {
+                    'msg_type': 'peer_up', 'peer_ip': str(peer_ip), 'peer_as': peer.peer_as,
+                    'local_ip': str(self.routerid), 'local_as': peer.local_as, 'state': 'up'}
             method = None if peer.state == 'up' else self.bgp.peer_up
             kwargs['peer_ip'] = peer_ip
         elif state == 'down':
@@ -155,8 +167,9 @@ class FlowBasedBGP(app_manager.RyuApp):
             kwargs['peer_ip'] = peer_ip
         elif state == 'connected':
             msg = {
-                    'msg_type': 'nexthop_up', 'routerid': str(self.routerid), 'nexthop': str(peer_ip),
-                    'pathid': 1, 'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
+                    'msg_type': 'nexthop_up', 'routerid': str(self.routerid),
+                    'nexthop': str(peer_ip), 'pathid': self._get_pathid(peer_ip),
+                    'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
                     'vlan_vid': kwargs['vlan_vid']}
             method = None if peer.is_connected else peer.connected
         elif state == 'disconnected':

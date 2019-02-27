@@ -11,10 +11,10 @@ import signal
 import os
 import sys
 import socket, logging
+import logging
 
 from multiprocessing.connection import Listener
 
-from fbgp.utils import get_logger
 from fbgp.cfg import CONF
 
 
@@ -50,9 +50,7 @@ neighbor %s {
     """
 
     def __init__(self, handler, peers, routerid):
-        self.logger = get_logger(
-            'fbgp.exabgp',
-            os.environ.get('FBGP_EXABGP_CONNECT_LOG', '/var/log/fbgp/exabgp_connect.log'))
+        self.logger = logging.getLogger('fbgp.exabgp_connect')
         self.handler = handler
         self.peers = peers
         self.routerid = routerid

@@ -1,15 +1,16 @@
-from fbgp.utils import get_logger
-
-import os, socket, json
-import traceback
 import eventlet
 eventlet.monkey_patch()
 
-logger = get_logger('fbgp.faucet_connect')
+import os
+import socket
+import json
+import logging
+import traceback
 
 class FaucetConnect():
 
     def __init__(self, handler, faucet_sock_path=None):
+        self.logger = logging.getLogger('fbgp.faucet_connect')
         self.handler = handler
         self.socket = None
         self.sock_file = None
@@ -19,10 +20,10 @@ class FaucetConnect():
             self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.socket.connect(sock_path)
             self.sock_file = self.socket.makefile('rb')
-            logger.info('connected to Faucet event')
+            self.logger.info('connected to Faucet event')
 
     def start(self):
-        logger.info('start faucet event listener')
+        self.logger.info('start faucet event listener')
         self.running = True
         return eventlet.spawn(self._faucet_event_loop)
 
@@ -45,7 +46,7 @@ class FaucetConnect():
             self.socket.close()
 
     def _process_faucet_event(self, event):
-        logger.debug('received faucet event: %s' % event)
+        self.logger.debug('received faucet event: %s' % event)
         try:
             event = json.loads(event)
             if event['version'] != 1:

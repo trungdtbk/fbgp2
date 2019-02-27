@@ -2,6 +2,7 @@
 """
 from fbgp.policy import Policy
 
+import logging
 import json
 import ipaddress
 import operator
@@ -190,8 +191,8 @@ class BgpPeer:
 class BgpRouter():
     """BGP selection algorithm."""
 
-    def __init__(self, logger, borders, peers, path_change_handler):
-        self.logger = logger
+    def __init__(self, borders, peers, path_change_handler):
+        self.logger = logging.getLogger('fbgp.bgp')
         self.borders = borders
         self.peers = peers
         self.notify_path_change = path_change_handler

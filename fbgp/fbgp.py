@@ -44,7 +44,7 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(FlowBasedBGP, self).__init__(*args, **kwargs)
-        self.logger = get_logger('fbgp',
+        self.logger = get_logger('fbgp.main',
                 os.environ.get('FBGP_LOG', None),
                 os.environ.get('FBGP_LOG_LEVEL', 'info'))
         self.faucet_api = kwargs['faucet_experimental_api']
@@ -87,7 +87,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 routerid = ipaddress.ip_address(border_conf['routerid'])
                 self.borders[routerid] = Border(
                         routerid=routerid, nexthop=ipaddress.ip_address(border_conf['nexthop']))
-            self.bgp = BgpRouter(self.logger, self.borders, self.peers, self.path_change_handler)
+            self.bgp = BgpRouter(self.borders, self.peers, self.path_change_handler)
             self.logger.info('config loaded')
 
     def path_change_handler(self, peer, route, withdraw=False):

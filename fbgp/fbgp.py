@@ -42,6 +42,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     exabgp_connect = None # interface to exabgp
     server_connect = None # interface to the route controller
     current_pathid = 0
+    path_mapping = None # mapping between a peer and path, managed by the route server
 
     def __init__(self, *args, **kwargs):
         super(FlowBasedBGP, self).__init__(*args, **kwargs)
@@ -50,6 +51,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 os.environ.get('FBGP_LOG_LEVEL', 'info'))
         self.faucet_api = kwargs['faucet_experimental_api']
         self.nexthop_to_pathid = {}
+        self.path_mapping = collections.defaultdict(dict)
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
@@ -129,6 +131,18 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def deregister(self):
         pass
+
+    def _add_mapping(self, peer_ip, prefix, nexthop, egress=None, pathid=None):
+        """create a mapping between a peer and a route.
+        egress is None assuming the nexthop is local"""
+        if pathid is None and egress is None:
+            pathid = self.nexthop_to_pathid[nexthop]
+        mapping_table = self.path_mapping[peer_ip]
+        mapping_table[prefix] = (nexthop, egress, pathid)
+
+    def _del_mapping(self, peer_ip, prefix):
+        mapping_table = self.path_mapping[peer_ip]
+        return mapping_table.pop(prefix)
 
     def _notify_route_change(self, peer_ip, route, withdraw=False):
         """notify the route server about a route."""

@@ -110,9 +110,11 @@ class FlowBasedBGP(app_manager.RyuApp):
             if peer.is_connected:
                 msg = {
                         'msg_type': 'nexthop_up', 'routerid': str(self.routerid),
-                        'nexthop': str(peer.peer_ip), 'pathid': None, 'dp_id': peer.dp_id,
+                        'nexthop': str(peer.peer_ip), 'pathid': 1, 'dp_id': peer.dp_id,
                         'port_no': peer.port_no, 'vlan_vid': peer.vlan_vid}
                 self._send_to_server(msg)
+            for route in peer.routes():
+                self._notify_route_change(peer.peer_ip, route)
 
     def deregister(self):
         pass
@@ -121,7 +123,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         """notify the route server about a route."""
         msg_type = 'route_down' if withdraw else 'route_up'
         msg = {
-                'msg_type': msg_type, 'peer_ip': str(peer_ip), 'nexthop': str(route.nexthop),
+                'msg_type': msg_type, 'peer_ip': str(peer_ip), 'next_hop': str(route.nexthop),
                 'prefix': str(route.prefix), 'local_pref': route.local_pref, 'med': route.med,
                 'as_path': route.as_path}
         self._send_to_server(msg)
@@ -154,7 +156,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         elif state == 'connected':
             msg = {
                     'msg_type': 'nexthop_up', 'routerid': str(self.routerid), 'nexthop': str(peer_ip),
-                    'pathid': None, 'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
+                    'pathid': 1, 'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
                     'vlan_vid': kwargs['vlan_vid']}
             method = None if peer.is_connected else peer.connected
         elif state == 'disconnected':

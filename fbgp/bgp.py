@@ -284,9 +284,6 @@ class BgpRouter():
         peer.bgp_session_down()
         return msgs
 
-    def _other_peers(self, peer):
-        return [other_peer for other_peer in self.peers.values() if other_peer != peer]
-
     @staticmethod
     def _announce(peer, route):
         msgs = []
@@ -302,50 +299,3 @@ class BgpRouter():
         if route:
             msgs.extend(route.to_exabgp())
         return msgs
-
-    def process_update(self, peer_ip, update):
-        """Process a BGP update received from ExaBGP."""
-        self.logger.info('processing update: %s' % update)
-        try:
-            msgs = []
-            if peer_ip not in self.peers:
-                return []
-            peer = self.peers[peer_ip]
-            if 'announce' in update and 'ipv4 unicast' in update['announce']:
-                attributes = update['attribute']
-                for name, attr in [
-                        ('origin', 'origin'), ('igp', 'igp'), ('as_path', 'as-path'),
-                        ('med', 'med'), ('community', 'communities'),
-                        ('local_pref', 'local-preference')]:
-                    attributes[name] = update['attribute'].get(attr)
-                for nexthop, nlris in update['announce']['ipv4 unicast'].items():
-                    nexthop = ipaddress.ip_address(nexthop)
-                    for prefix in nlris:
-                        prefix = ipaddress.ip_network(prefix['nlri'])
-                        route = peer.rcv_announce(prefix, nexthop, **attributes)
-                        new_best = self._add_route(route)
-                        if new_best is None:
-                            continue
-                        self.logger.debug('best path changed: %s' % new_best)
-                        self.notify_path_change(peer, new_best)
-                        for other_peer in self._other_peers(peer):
-                            msgs.extend(self._announce(other_peer, new_best))
-
-            if 'withdraw' in update and 'ipv4 unicast' in update['withdraw']:
-                for prefix in update['withdraw']['ipv4 unicast']:
-                    prefix = ipaddress.ip_network(prefix['nlri'])
-                    route = peer.rcv_withdraw(prefix)
-                    new_best = self._del_route(route)
-                    if new_best:
-                        self.notify_path_change(peer, new_best, True)
-                        self.logger.debug('best path changed: %s' % new_best)
-                    for other_peer in self._other_peers(peer):
-                        if new_best:
-                            msgs.extend(self._announce(other_peer, new_best))
-                        else:
-                            msgs.extend(self._withdraw(other_peer, route))
-            return msgs
-        except Exception as e:
-            print(e)
-            traceback.print_exc()
-        return []

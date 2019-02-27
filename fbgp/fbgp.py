@@ -3,9 +3,15 @@
 import eventlet
 eventlet.monkey_patch()
 
-import sys, os, time, traceback
-import json, ipaddress
-import yaml, socket, collections
+import sys
+import os
+import time
+import traceback
+import json
+import ipaddress
+import yaml
+import socket
+import collections
 
 from ryu.base import app_manager
 from ryu.controller.handler import set_ev_cls

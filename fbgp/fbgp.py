@@ -88,16 +88,97 @@ class FlowBasedBGP(app_manager.RyuApp):
         # install route to Faucet
         if withdraw:
             self.faucet_api.del_route(
-                    route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
+                route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
         else:
             self.faucet_api.add_route(
-                    route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
+                route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
+
+    def register(self):
+        self._send_to_server({
+            'msg_type': 'router_up', 'routerid': str(self.routerid), 'state': 'up'})
+
+        for peer in self.peers.values():
+            msg = {'msg_type': 'peer_up', 'peer_ip': str(peer.peer_ip), 'peer_as': peer.peer_as,
+                   'local_ip': str(self.routerid), 'local_as': peer.local_as, 'state': peer.state}
+            self._send_to_server(msg)
+            if peer.is_connected:
+                msg = {
+                        'msg_type': 'nexthop_up', 'routerid': str(self.routerid),
+                        'nexthop': str(peer.peer_ip), 'pathid': None, 'dp_id': peer.dp_id,
+                        'port_no': peer.port_no, 'vlan_vid': peer.vlan_vid}
+                self._send_to_server(msg)
+
+    def deregister(self):
+        pass
+
+    def _send(self, connector, msg):
+        if connector:
+            connector.send(msg)
+            self.logger.debug('sent a msg to server: %s' % msg)
+
+    def _send_to_server(self, msg):
+        self._send(self.server_connect, msg)
+
+    def _send_to_exabgp(self, msg):
+        self._send(self.exabgp_connect, msg)
+
+    def _peer_state_change(self, peer_ip, state, **kwargs):
+        peer = self.peers[peer_ip]
+        msg_type = None
+        method = None
+        msg = {}
+        if state == 'up':
+            msg = {'msg_type': 'peer_up', 'peer_ip': str(peer_ip), 'peer_as': peer.peer_as,
+                   'local_ip': str(self.routerid), 'local_as': peer.local_as, 'state': 'up'}
+            method = None if peer.state == 'up' else self.bgp.peer_up
+            kwargs['peer_ip'] = peer_ip
+        elif state == 'down':
+            msg = {'msg_type': 'peer_down', 'peer_ip': str(peer_ip)}
+            method = None if peer.state =='down' else self.bgp.peer_down
+            kwargs['peer_ip'] = peer_ip
+        elif state == 'connected':
+            msg = {
+                    'msg_type': 'nexthop_up', 'routerid': str(self.routerid), 'nexthop': str(peer_ip),
+                    'pathid': None, 'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
+                    'vlan_vid': kwargs['vlan_vid']}
+            method = None if peer.is_connected else peer.connected
+        elif state == 'disconnected':
+            msg = {'msg_type': 'nexthop_down', 'routerid': str(self.routerid), 'nexthop': str(peer_ip)}
+            method = None if not peer.is_connected else peer.disconnected
+        if method and msg:
+            self._send_to_server(msg)
+            return method(**kwargs)
+        return []
 
     def _process_exabgp_msg(self, msg):
         """Process message received from ExaBGP."""
-        exabgp_msgs = self.bgp.process_exabgp_msg(msg)
-        for msg in exabgp_msgs:
-            self.exabgp_connect.send(msg)
+        self.logger.debug('processing msg from exabgp: %r' % msg)
+        if msg in ['done', 'error']:
+            return []
+        try:
+            msg = json.loads(msg)
+            if msg.get('type') == 'notification':
+                #TODO: handle notification
+                return []
+            neighbor = msg.get('neighbor', {})
+            if not neighbor:
+                return []
+            local_ip = ipaddress.ip_address(neighbor['address']['local'])
+            peer_ip = ipaddress.ip_address(neighbor['address']['peer'])
+            local_as = neighbor['asn']['local']
+            peer_as = neighbor['asn']['peer']
+            msgs = []
+            if msg.get('type') == 'update' and 'update' in neighbor['message']:
+                update = neighbor['message']['update']
+                msgs = self.bgp.process_update(peer_ip, update)
+            elif msg.get('type') == 'state':
+                state = 'up' if neighbor['state'] == 'connected' else 'down'
+                msgs = self._peer_state_change(peer_ip, state)
+            for msg in msgs:
+                self._send_to_exabgp(msg)
+        except Exception as e:
+            print(msg)
+            traceback.print_exc()
 
     def _process_faucet_msg(self, msg):
         """Process message received from Faucet Controller."""
@@ -111,7 +192,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 peer = self.peers[ipa]
                 if peer.is_connected:
                     return
-                peer.connected(dpid, vid, port_no)
+                self._peer_state_change(ipa, 'connected', dp_id=dpid, port_no=port_no, vlan_vid=vid)
                 self.logger.info('Peer %s (%s) is connected' % (peer.peer_ip, peer.peer_as))
             else:
                 for border in self.borders.values():
@@ -128,9 +209,11 @@ class FlowBasedBGP(app_manager.RyuApp):
         if msg_type == 'server_connected':
             #TODO: process server connected event
             self.logger.info('Connected to server: %s' % msg['msg'])
+            self.register()
         elif msg_type == 'server_disconnected':
             #TODO: process server disconnected event
             self.logger.info('Disconnected from server: %s' % msg['msg'])
+            self.deregister()
         elif msg_type == 'server_command':
             #TODO: process server commands
             self.logger.info('Receive msg from server: %s' % msg['msg'])

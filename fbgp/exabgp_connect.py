@@ -102,7 +102,7 @@ neighbor %s {
         self.exabgp = subprocess.Popen(
             ['env', 'exabgp.tcp.bind=' + '0.0.0.0', 'exabgp.tcp.port=' + '1179',
              'exabgp.daemon.daemonize=false', 'exabgp.daemon.user=root',
-             'exabgp.log.level=DEBUG', 'exabgp.log.all=true',
+             'exabgp.log.level=INFO', 'exabgp.log.all=true',
              'exabgp.log.destination=' + self.exabgp_hook_log,
              'exabgp', self.exabgp_cfg_file],
              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

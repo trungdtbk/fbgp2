@@ -1,8 +1,6 @@
 """This module is an interface to the Route Controller. It provides APIs to send
 network events to the route controller and to receive control commands.
 """
-from .utils import get_logger
-
 import eventlet
 eventlet.monkey_patch()
 
@@ -24,7 +22,7 @@ class RouteServerProtocol(LineReceiver):
         self.handler = handler
 
     def connectionMade(self):
-        self.handler({'msg_type': 'server_connect', 'msg': self.transport.getPeer()})
+        self.handler({'msg_type': 'server_connected', 'msg': self.transport.getPeer()})
 
     def connectionLost(self, reason):
         self.handler({'msg_type': 'server_disconnected', 'msg': reason.getErrorMessage()})
@@ -52,15 +50,17 @@ class ServerConnect(ReconnectingClientFactory):
         if not self.proto:
             return False
         if isinstance(data, dict):
-            msg = json.dumps(data).encode('utf-8')
+            msg = json.dumps(data)
         else:
-            msg = str(data).encode('utf-8')
-        reactor.callFromThread(lambda: self.proto.send(msg)) #pylint: disable=no-member
+            msg = str(data)
+        reactor.callFromThread(lambda: self.proto.send(msg.encode('utf-8'))) #pylint: disable=no-member
         return True
 
     def start(self):
         reactor.connectTCP(self.server_addr, self.server_port, self, timeout=1) #pylint: disable=no-member
-        reactor.run() #pylint: disable=no-member
+        t = eventlet.spawn(reactor.run) #pylint: disable=no-member
+        eventlet.sleep(0)
+        return t
 
     def stop(self):
         reactor.stop() #pylint: disable=no-member

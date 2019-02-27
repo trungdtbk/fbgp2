@@ -348,34 +348,3 @@ class BgpRouter():
             print(e)
             traceback.print_exc()
         return []
-
-    def process_exabgp_msg(self, msg):
-        self.logger.info('processing msg from exabgp: %r' % msg)
-        if msg in ['done', 'error']:
-            return []
-        try:
-            msg = json.loads(msg)
-            if msg.get('type') == 'notification':
-                #TODO: handle notification
-                return []
-            neighbor = msg.get('neighbor', {})
-            if not neighbor:
-                return []
-            local_ip = ipaddress.ip_address(neighbor['address']['local'])
-            peer_ip = ipaddress.ip_address(neighbor['address']['peer'])
-            local_as = neighbor['asn']['local']
-            peer_as = neighbor['asn']['peer']
-            msgs = []
-            if msg.get('type') == 'update' and 'update' in neighbor['message']:
-                update = neighbor['message']['update']
-                msgs = self.process_update(peer_ip, update)
-            elif msg.get('type') == 'state':
-                state = neighbor['state']
-                if state == 'down':
-                    msgs = self.peer_down(peer_ip)
-                elif state == 'up':
-                    msgs = self.peer_up(peer_ip)
-            return msgs
-        except Exception as e:
-            print(msg)
-            traceback.print_exc()

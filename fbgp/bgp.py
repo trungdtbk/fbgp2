@@ -92,7 +92,7 @@ class BgpPeer:
     """Representation of a BGP peer. It also keeps info about the attachment point."""
 
     def __init__(self, peer_as, peer_ip, local_as=None, local_ip=None, peer_port=179,
-                 dp_id=None, vlan_vid=None, port_no=None):
+                 dp_id=None, vlan_vid=None, port_no=None, vlan=None):
         self.import_policy = Policy.default() # default accept everything
         self.export_policy = Policy.default() # default accept everything
 
@@ -105,6 +105,7 @@ class BgpPeer:
         self.dp_id = dp_id
         self.vlan_vid = vlan_vid
         self.port_no = port_no
+        self.vlan = vlan
 
         self._rib_in = {} #route received from peer
         self._rib_out = {} #route announced to peer
@@ -286,11 +287,11 @@ class BgpRouter():
         return msgs
 
     @staticmethod
-    def announce(peer, route):
+    def announce(peer, route, gateway=None):
         msgs = []
         route = peer.announce(route)
         if route:
-            msgs.append(route.to_exabgp(peer))
+            msgs.append(route.to_exabgp(peer, gw=gateway))
         return msgs
 
     @staticmethod

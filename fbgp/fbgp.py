@@ -53,6 +53,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         self.nexthop_to_pathid = {}
         self.path_mapping = collections.defaultdict(dict)
         self.vlan_peers = collections.defaultdict(set)
+        self.vip_assignment = {}
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
@@ -90,10 +91,10 @@ class FlowBasedBGP(app_manager.RyuApp):
                                local_ip=peer_conf.get('local_ip', None),
                                local_as=peer_conf.get('local_as', None),
                                peer_port=peer_conf.get('peer_port', 179))
-                self.peers[peer_ip] = peer
                 for vlan in self.vlans.values():
                     if vlan.ip_in_vip_subnet(peer_ip):
-                        self.vlan_peers[vlan].add(peer)
+                        peer.vlan = vlan
+                self.peers[peer_ip] = peer
             self.borders = {}
             for border_conf in config.pop('borders'):
                 routerid = ipaddress.ip_address(border_conf['routerid'])
@@ -111,6 +112,19 @@ class FlowBasedBGP(app_manager.RyuApp):
             self.nexthop_to_pathid[nexthop] = self.current_pathid
             return self.current_pathid
 
+    def _get_vip(self, nexthop, vlan):
+        """return vip (extra) if we still have one."""
+        if not (nexthop and vlan):
+            return
+        if (nexthop, vlan) in self.vip_assignment:
+            return self.vip_assignment[(nexthop, vlan)]
+        used_vips = set(self.vip_assignment.values())
+        for vip in vlan.faucet_ext_vips:
+            if vip not in used_vips:
+                self.vip_assignment[(nexthop, vlan)] = vip
+                return vip
+        return None
+
     def path_change_handler(self, peer, route, withdraw=False):
         """handle route advertisement or withdrawal event."""
         msgs = []
@@ -119,15 +133,25 @@ class FlowBasedBGP(app_manager.RyuApp):
         else:
             new_best = self.bgp.add_route(route)
         self.logger.info('best path changed: %s' % new_best)
+        peers_using_non_best = self.path_mapping[(route.prefix, route.nexthop)]
+        peers_using_best_path = set(self._other_peers(peer))
+        peers_using_best_path = peers_using_best_path.difference(peers_using_non_best)
+        for peer in peers_using_non_best:
+            vip = self._get_vip(route.nexthop, peer.vlan)
+            if vip:
+                self.faucet_api.add_ext_vip(
+                    vip, pathid=self._get_pathid(route.nexthop),
+                    dpid=peer.dp_id, vid=peer.vlan_vid)
+                msgs.extend(self.bgp.announce(route, gateway=vip))
         if new_best:
             self.faucet_api.add_route(
                 new_best.prefix, new_best.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
-            for other_peer in self._other_peers(peer):
+            for other_peer in peers_using_best_path:
                 msgs.extend(self.bgp.announce(other_peer, new_best))
         elif withdraw:
             self.faucet_api.del_route(
                 route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
-            for other_peer in self._other_peers(peer):
+            for other_peer in peers_using_best_path:
                 msgs.extend(self.bgp.withdraw(other_peer, route))
         return msgs
 

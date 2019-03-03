@@ -5,6 +5,10 @@ vlans:
     vlan20:
         vid: 20
         faucet_vips: ['10.0.20.254/24']
+        faucet_ext_vips:
+            10.0.20.250: '00:0e:00:20:02:50'
+            10.0.20.251: '00:0e:00:20:02:51'
+            10.0.20.252: '00:0e:00:20:02:52'
     vlan30:
         vid: 30
         faucet_vips: ['10.0.30.254/24']
@@ -17,6 +21,7 @@ dps:
     s1:
         dp_id: 1
         hardware: 'Open vSwitch'
+        global_vlan: 4090
         interfaces:
             1:
                 tagged_vlans: [vlan10, vlan20, vlan30]

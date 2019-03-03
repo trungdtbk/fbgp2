@@ -18,6 +18,12 @@ peers:
   peer_as: 4
   local_as: 65000
   local_ip: 10.0.20.253
+
+- peer_ip: 10.0.20.3
+  peer_as: 4
+  local_as: 65000
+  local_ip: 10.0.20.253
+
 - peer_ip: 172.17.0.1
   peer_as: 65000
   local_as: 65000

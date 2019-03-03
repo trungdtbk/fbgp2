@@ -22,15 +22,16 @@ class Route:
         self.origin = attributes.get('origin') or 'incomplete'
         self.community = attributes.get('community')
 
-    def to_exabgp(self, peer_ip=None, is_withdraw=False):
+    def to_exabgp(self, peer_ip=None, is_withdraw=False, gw=None):
         line = ''
+        gateway = gw or self.local_ip
         if peer_ip:
             line = 'neighbor %s' % peer_ip
         if is_withdraw:
             line += ' withdraw route %s' % self.prefix
         else:
             line += ' announce route %s next-hop %s as-path %s' % (
-                self.prefix, self.nexthop, self.as_path)
+                self.prefix, gateway, self.as_path)
         for name, attr in [
                 ('origin', 'origin'), ('med', 'med'), ('local_pref', 'local-preference'),
                 ('community', 'community')]:

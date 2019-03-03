@@ -22,11 +22,11 @@ class Route:
         self.origin = attributes.get('origin') or 'incomplete'
         self.community = attributes.get('community')
 
-    def to_exabgp(self, peer_ip=None, is_withdraw=False, gw=None):
+    def to_exabgp(self, peer=None, is_withdraw=False, gw=None):
         line = ''
-        gateway = gw or self.local_ip
-        if peer_ip:
-            line = 'neighbor %s' % peer_ip
+        gateway = gw or peer.local_ip
+        if peer:
+            line = 'neighbor %s' % peer.peer_ip
         if is_withdraw:
             line += ' withdraw route %s' % self.prefix
         else:
@@ -290,7 +290,7 @@ class BgpRouter():
         msgs = []
         route = peer.announce(route)
         if route:
-            msgs.append(route.to_exabgp(peer.peer_ip))
+            msgs.append(route.to_exabgp(peer))
         return msgs
 
     @staticmethod
@@ -298,5 +298,5 @@ class BgpRouter():
         msgs = []
         route = peer.withdraw(route)
         if route:
-            msgs.extend(route.to_exabgp())
+            msgs.extend(route.to_exabgp(peer, is_withdraw=True))
         return msgs

@@ -69,8 +69,10 @@ class FlowBasedBGP(app_manager.RyuApp):
                                                    'peers': self.peers, 'routerid': self.routerid}),
                 ('server_connect', ServerConnect, {'handler': self._process_server_msg})]:
             connector = connector_cls(**kwargs)
-            connector.start()
             setattr(self, name, connector)
+        for name in ['faucet_connect', 'exabgp_connect', 'server_connect']:
+            connector = getattr(self, name)
+            connector.start()
 
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
@@ -199,7 +201,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _send(self, connector, msg):
         if connector:
             connector.send(msg)
-            self.logger.debug('sent a msg to server: %s' % msg)
+            self.logger.info('sent a msg to %s: %s' % (connector.__class__.__name__, msg))
 
     def _send_to_server(self, msg):
         self._send(self.server_connect, msg)

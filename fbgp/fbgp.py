@@ -51,7 +51,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 os.environ.get('FBGP_LOG_LEVEL', 'info'))
         self.faucet_api = kwargs['faucet_experimental_api']
         self.nexthop_to_pathid = {}
-        self.path_mapping = collections.defaultdict(dict)
+        self.path_mapping = collections.defaultdict(set)
         self.vlan_peers = collections.defaultdict(set)
         self.vip_assignment = {}
 
@@ -141,10 +141,11 @@ class FlowBasedBGP(app_manager.RyuApp):
         for peer in peers_using_non_best:
             vip = self._get_vip(route.nexthop, peer.vlan)
             if vip:
-                self.faucet_api.add_ext_vip(
-                    vip, pathid=self._get_pathid(route.nexthop),
-                    dpid=peer.dp_id, vid=peer.vlan_vid)
-                msgs.extend(self.bgp.announce(route, gateway=vip))
+                pathid = self._get_pathid(route.nexthop)
+                self.faucet_api.add_ext_vip(vip, pathid=pathid, dpid=peer.dp_id, vid=peer.vlan_vid)
+                self.faucet_api.add_route(
+                    route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid, pathid=pathid)
+                msgs.extend(self.bgp.announce(peer, route, gateway=vip))
         if new_best:
             self.faucet_api.add_route(
                 new_best.prefix, new_best.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)

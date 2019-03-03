@@ -229,7 +229,7 @@ class BgpRouter():
             best_route = compare(best_route, route)
         return best_route
 
-    def _del_route(self, route):
+    def del_route(self, route):
         if not route:
             return None
         routes = self.loc_rib[route.prefix]
@@ -246,7 +246,7 @@ class BgpRouter():
                 return best_route
         return None
 
-    def _add_route(self, new_route):
+    def add_route(self, new_route):
         if new_route is None:
             return
         prefix = new_route.prefix
@@ -278,7 +278,7 @@ class BgpRouter():
             return msgs
         peer = self.peers[peer_ip]
         for route in peer.routes():
-            new_best = self._del_route(route)
+            new_best = self.del_route(route)
             if new_best:
                 for other_peer in self._other_peers(peer):
                     msgs.extend(self._announce(other_peer, new_best))
@@ -286,7 +286,7 @@ class BgpRouter():
         return msgs
 
     @staticmethod
-    def _announce(peer, route):
+    def announce(peer, route):
         msgs = []
         route = peer.announce(route)
         if route:
@@ -294,7 +294,7 @@ class BgpRouter():
         return msgs
 
     @staticmethod
-    def _withdraw(peer, route):
+    def withdraw(peer, route):
         msgs = []
         route = peer.withdraw(route)
         if route:

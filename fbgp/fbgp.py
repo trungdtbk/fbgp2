@@ -52,6 +52,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         self.faucet_api = kwargs['faucet_experimental_api']
         self.nexthop_to_pathid = {}
         self.path_mapping = collections.defaultdict(dict)
+        self.vlan_peers = collections.defaultdict(set)
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
@@ -72,6 +73,10 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
+        self.valves = self.faucet_api.faucet.valves_manager.valves
+        self.vlans = {}
+        for dp in [valve.dp for valve in self.valves.values()]:
+            self.vlans.update(dp.vlans)
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f.read())
             self.import_policy = {}
@@ -86,6 +91,9 @@ class FlowBasedBGP(app_manager.RyuApp):
                                local_as=peer_conf.get('local_as', None),
                                peer_port=peer_conf.get('peer_port', 179))
                 self.peers[peer_ip] = peer
+                for vlan in self.vlans.values():
+                    if vlan.ip_in_vip_subnet(peer_ip):
+                        self.vlan_peers[vlan].add(peer)
             self.borders = {}
             for border_conf in config.pop('borders'):
                 routerid = ipaddress.ip_address(border_conf['routerid'])
@@ -104,13 +112,24 @@ class FlowBasedBGP(app_manager.RyuApp):
             return self.current_pathid
 
     def path_change_handler(self, peer, route, withdraw=False):
-        # install route to Faucet
+        """handle route advertisement or withdrawal event."""
+        msgs = []
         if withdraw:
+            new_best = self.bgp.del_route(route)
+        else:
+            new_best = self.bgp.add_route(route)
+        self.logger.info('best path changed: %s' % new_best)
+        if new_best:
+            self.faucet_api.add_route(
+                new_best.prefix, new_best.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
+            for other_peer in self._other_peers(peer):
+                msgs.extend(self.bgp.announce(other_peer, new_best))
+        elif withdraw:
             self.faucet_api.del_route(
                 route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
-        else:
-            self.faucet_api.add_route(
-                route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
+            for other_peer in self._other_peers(peer):
+                msgs.extend(self.bgp.withdraw(other_peer, route))
+        return msgs
 
     def register(self):
         self._send_to_server({
@@ -248,28 +267,13 @@ class FlowBasedBGP(app_manager.RyuApp):
                         prefix = ipaddress.ip_network(prefix['nlri'])
                         route = peer.rcv_announce(prefix, nexthop, **attributes)
                         self._notify_route_change(peer_ip, route)
-                        new_best = self.bgp._add_route(route)
-                        if new_best is None:
-                            continue
-                        self.logger.debug('best path changed: %s' % new_best)
-                        self.path_change_handler(peer, new_best)
-                        for other_peer in self._other_peers(peer):
-                            msgs.extend(self.bgp._announce(other_peer, new_best))
-
+                        msgs.extend(self.path_change_handler(peer, route))
             if 'withdraw' in update and 'ipv4 unicast' in update['withdraw']:
                 for prefix in update['withdraw']['ipv4 unicast']:
                     prefix = ipaddress.ip_network(prefix['nlri'])
                     route = peer.rcv_withdraw(prefix)
                     self._notify_route_change(peer_ip, route, True)
-                    new_best = self.bgp._del_route(route)
-                    if new_best:
-                        self.path_change_handler(peer, new_best, True)
-                        self.logger.debug('best path changed: %s' % new_best)
-                    for other_peer in self._other_peers(peer):
-                        if new_best:
-                            msgs.extend(self.bgp._announce(other_peer, new_best))
-                        else:
-                            msgs.extend(self.bgp._withdraw(other_peer, route))
+                    msgs.extend(self.path_change_handler(peer, route, True))
             return msgs
         except Exception as e:
             print(e)

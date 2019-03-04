@@ -364,15 +364,43 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _process_server_msg(self, msg):
         """Process message received from Route Controller."""
+        msgs = []
         msg_type = msg['msg_type']
+        msg = msg['msg']
         if msg_type == 'server_connected':
             #TODO: process server connected event
-            self.logger.info('Connected to server: %s' % msg['msg'])
+            self.logger.info('Connected to server: %s' % msg)
             self.register()
         elif msg_type == 'server_disconnected':
             #TODO: process server disconnected event
-            self.logger.info('Disconnected from server: %s' % msg['msg'])
+            self.logger.info('Disconnected from server: %s' % msg)
             self.deregister()
         elif msg_type == 'server_command':
             #TODO: process server commands
-            self.logger.info('Receive msg from server: %s' % msg['msg'])
+            self.logger.info('Receive msg from server: %s' % msg)
+            command = msg['command']
+            prefix = ipaddress.ip_network(msg['prefix'])
+            nexthop = ipaddress.ip_address(msg['nexthop'])
+            egress = ipaddress.ip_address(msg['egress']) if 'egress' in msg else None
+            pathid = int(msg['pathid']) if 'pathid' in msg else None
+            peerip = ipaddress.ip_address(msg['peerip']) if 'peerip' in msg else None
+            if peerip is None: # override the best path selected by BGP
+                best_route = self.bgp.best_routes.get(prefix)
+                if best_route.nexthop == nexthop:
+                    return
+                route = self._route_by_nexthop(prefix, nexthop)
+                if not route:
+                    return
+                self.bgp.best_routes[prefix] = route
+                for peer in self.peers.values():
+                    if peer.peer_ip == route.nexthop:
+                        continue
+                    msgs.extend(self.bgp.announce(peer, route))
+            else:
+                peer = self.peers[peerip]
+                if command == 'add_mapping':
+                    self._add_mapping(peerip, prefix, nexthop, egress, pathid)
+                elif command == 'del_mapping':
+                    self._del_mapping(peerip, prefix, nexthop, egress, pathid)
+            for msg in msgs:
+                self._send_to_exabgp(msg)

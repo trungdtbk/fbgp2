@@ -294,7 +294,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 update = neighbor['message']['update']
                 msgs = self._process_bgp_update(peer_ip, update)
             elif msg.get('type') == 'state':
-                state = 'up' if neighbor['state'] == 'connected' else 'down'
+                state = 'up' if neighbor['state'] == 'up' else 'down'
                 msgs = self._peer_state_change(peer_ip, state)
             for msg in msgs:
                 self._send_to_exabgp(msg)

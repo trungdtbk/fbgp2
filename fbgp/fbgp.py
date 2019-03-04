@@ -178,17 +178,49 @@ class FlowBasedBGP(app_manager.RyuApp):
     def deregister(self):
         pass
 
+    def _route_by_nexthop(self, prefix, nexthop):
+        """return a route for a prefix by its nexthop."""
+        for route in self.bgp.loc_rib.get(prefix, []):
+            if route.nexthop == nexthop:
+                return route
+        return None
+
     def _add_mapping(self, peer_ip, prefix, nexthop, egress=None, pathid=None):
         """create a mapping between a peer and a route.
         egress is None assuming the nexthop is local"""
-        if pathid is None and egress is None:
-            pathid = self.nexthop_to_pathid[nexthop]
-        mapping_table = self.path_mapping[peer_ip]
-        mapping_table[prefix] = (nexthop, egress, pathid)
+        if pathid is None and egress is None: # this is the local route
+            peer = self.peers[peer_ip]
+            self.path_mapping[prefix, nexthop].add(peer)
+            vip = self._get_vip(nexthop, peer.vlan)
+            if not vip:
+                return
+            pathid = self._get_pathid(nexthop)
+            route = self._route_by_nexthop(prefix, nexthop)
+            if route:
+                self.faucet_api.add_ext_vip(vip, pathid=pathid, dpid=peer.dp_id, vid=peer.vlan_vid)
+                self.faucet_api.add_route(
+                    prefix, nexthop, dpid=peer.dp_id, vid=peer.vlan_vid, pathid=pathid)
+                for msg in self.bgp.announce(peer, route, gateway=vip):
+                    self._send_to_exabgp(msg)
+        else:
+            #TODO: handle the case when route is remote
+            pass
 
-    def _del_mapping(self, peer_ip, prefix):
-        mapping_table = self.path_mapping[peer_ip]
-        return mapping_table.pop(prefix)
+    def _del_mapping(self, peer_ip, prefix, nexthop, egress=None, pathid=None):
+        msgs = []
+        if egress is None and pathid is None:
+            peer = self.peers[peer_ip]
+            if peer not in self.path_mapping[prefix, nexthop]:
+                return
+            best_route = self.bgp.best_routes.get(prefix)
+            if best_route:
+                # advertise best route instead
+                msgs = self.bgp.announce(peer, best_route)
+            else:
+                route = self._route_by_nexthop(prefix, nexthop)
+                msgs = self.bgp.withdraw(peer, route)
+        for msg in msgs:
+            self._send_to_exabgp(msg)
 
     def _notify_route_change(self, peer_ip, route, withdraw=False):
         """notify the route server about a route."""

@@ -28,6 +28,7 @@ setup(
     install_requires=[
             'pyyaml',
             'ryu',
-            'oslo.config'
+            'oslo.config',
+            'twisted'
             ]
     )

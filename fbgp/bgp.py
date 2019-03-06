@@ -25,7 +25,7 @@ class Route:
 
     def to_exabgp(self, peer=None, is_withdraw=False, gw=None):
         line = ''
-        gateway = gw or peer.local_ip
+        gateway = gw or peer.faucet_vip
         if peer:
             line = 'neighbor %s' % peer.peer_ip
         if is_withdraw:
@@ -107,6 +107,7 @@ class BgpPeer:
         self.vlan_vid = vlan_vid
         self.port_no = port_no
         self.vlan = vlan
+        self.faucet_vip = None
 
         self._rib_in = {} #route received from peer
         self._rib_out = {} #route announced to peer
@@ -160,7 +161,7 @@ class BgpPeer:
 
     def announce(self, route):
         """Announce a route to this peer."""
-        if route is None or route.prefix in self._rib_in:
+        if route is None or route.prefix in self._rib_in or self.faucet_vip is None:
             return
         out = self.export_policy.evaluate(route.copy())
         if out:

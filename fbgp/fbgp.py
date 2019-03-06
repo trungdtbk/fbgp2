@@ -97,6 +97,9 @@ class FlowBasedBGP(app_manager.RyuApp):
                 for vlan in self.vlans.values():
                     if vlan.ip_in_vip_subnet(peer_ip):
                         peer.vlan = vlan
+                        faucet_vips = vlan.faucet_vips_by_ipv(peer_ip.version)
+                        if faucet_vips:
+                            peer.faucet_vip = list(faucet_vips)[0].ip
                 self.peers[peer_ip] = peer
             self.borders = {}
             for border_conf in config.pop('borders'):

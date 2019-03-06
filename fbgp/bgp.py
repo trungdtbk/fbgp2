@@ -42,7 +42,7 @@ class Route:
 
     def copy(self):
         """return a copy of this route."""
-        return self.__class__(self.prefix, self.nexthop, local_pref=self.local_pref,
+        return self.__class__(self.learned_from_peer, self.prefix, self.nexthop, local_pref=self.local_pref,
                               as_path=self.as_path, med=self.med, origin=self.origin,
                               community=self.community)
 

@@ -132,6 +132,10 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _update_fib(self, prefix, nexthop, dpid=None, vid=None, pathid=None, add=True):
         if add:
             self.faucet_api.add_route(prefix, nexthop, dpid=dpid, vid=vid, pathid=pathid)
+            self.logger.info(
+                'Added extended FIB rule to datapath: prefix=%s, nexthop=%s, pathid=%s, dpid=%s, vid=%s' % (
+                    str(prefix), str(nexthop), pathid, dpid, vid))
+
         else: # consider if the route is still being used by some peers before deleteing
             #self.faucet_api.del_route(prefix, nexthop, dpid=dpid, vid=vid, pathid=pathid)
             pass
@@ -139,6 +143,9 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _update_mapping(self, vip, pathid, dpid, vid, add=True):
         if add:
             self.faucet_api.add_ext_vip(vip, pathid=pathid, dpid=dpid, vid=vid)
+            self.logger.info(
+                'Added mapping rule to datapath: vip=%s, pathid=%s, dpid=%s, vid=%s' % (
+                    str(vip), pathid, dpid, vid))
         else:
             #TODO: need to check if there is peer using this before deleting
             #self.faucet_api.del_ext_vip(vip, pathid=pathid, dpid=dpid, vid=vid)

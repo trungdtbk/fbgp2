@@ -129,6 +129,21 @@ class FlowBasedBGP(app_manager.RyuApp):
                 return vip
         return None
 
+    def _update_fib(self, prefix, nexthop, dpid=None, vid=None, pathid=None, add=True):
+        if add:
+            self.faucet_api.add_route(prefix, nexthop, dpid=dpid, vid=vid, pathid=pathid)
+        else: # consider if the route is still being used by some peers before deleteing
+            #self.faucet_api.del_route(prefix, nexthop, dpid=dpid, vid=vid, pathid=pathid)
+            pass
+
+    def _update_mapping(self, vip, pathid, dpid, vid, add=True):
+        if add:
+            self.faucet_api.add_ext_vip(vip, pathid=pathid, dpid=dpid, vid=vid)
+        else:
+            #TODO: need to check if there is peer using this before deleting
+            #self.faucet_api.del_ext_vip(vip, pathid=pathid, dpid=dpid, vid=vid)
+            pass
+
     def path_change_handler(self, peer, route, withdraw=False):
         """handle route advertisement or withdrawal event."""
         msgs = []
@@ -136,28 +151,31 @@ class FlowBasedBGP(app_manager.RyuApp):
             new_best = self.bgp.del_route(route)
         else:
             new_best = self.bgp.add_route(route)
-        self.logger.info('best path changed: %s' % new_best)
-        peers_using_non_best = self.path_mapping[(route.prefix, route.nexthop)]
-        peers_using_best_path = set(self._other_peers(peer))
-        peers_using_best_path = peers_using_best_path.difference(peers_using_non_best)
-        for peer in peers_using_non_best:
-            vip = self._get_vip(route.nexthop, peer.vlan)
-            if vip:
-                pathid = self._get_pathid(route.nexthop)
-                self.faucet_api.add_ext_vip(vip, pathid=pathid, dpid=peer.dp_id, vid=peer.vlan_vid)
-                self.faucet_api.add_route(
-                    route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid, pathid=pathid)
-                msgs.extend(self.bgp.announce(peer, route, gateway=vip))
         if new_best:
-            self.faucet_api.add_route(
-                new_best.prefix, new_best.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
-            for other_peer in peers_using_best_path:
+            self.logger.info('best path has changed: %s' % new_best)
+            self._update_fib(new_best.prefix, new_best.nexthop, peer.dp_id, peer.vlan_vid)
+
+        for other_peer in self._other_peers(peer):
+            if other_peer in self.path_mapping[route.prefix, route.nexthop]:
+                gateway = self._get_vip(route.nexthop, other_peer.vlan)
+                pathid = self._get_pathid(route.nexthop)
+                if withdraw:
+                    if new_best:
+                        msgs.extend(self.bgp.announce(other_peer, new_best))
+                    else:
+                        msgs.extend(self.bgp.withdraw(other_peer, route))
+                        self._update_mapping(
+                            gateway, pathid, other_peer.dp_id, other_peer.vlan_vid, False)
+                        self._update_fib(
+                            route.prefix, route.nexthop, peer.dp_id, peer.vlan_vid, pathid, False)
+                else:
+                    msgs.extend(self.bgp.announce(other_peer, route, gateway))
+                    self._update_mapping(
+                        gateway, pathid, other_peer.dp_id, other_peer.vlan_vid)
+                    self._update_fib(
+                        route.prefix, route.nexthop, peer.dp_id, peer.vlan_vid, pathid)
+            elif new_best:
                 msgs.extend(self.bgp.announce(other_peer, new_best))
-        elif withdraw:
-            self.faucet_api.del_route(
-                route.prefix, route.nexthop, dpid=peer.dp_id, vid=peer.vlan_vid)
-            for other_peer in peers_using_best_path:
-                msgs.extend(self.bgp.withdraw(other_peer, route))
         return msgs
 
     def register(self):
@@ -244,33 +262,85 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _send_to_exabgp(self, msg):
         self._send(self.exabgp_connect, msg)
 
+    def _peer_bgp_up(self, peer):
+
+        def non_best_route(peer, routes):
+            for route in routes:
+                if peer in self.path_mapping[route.prefix, route.nexthop]:
+                    return route
+            return None
+
+        def best_route(prefix):
+            if prefix in self.bgp.best_routes:
+                return self.bgp.best_routes[prefix]
+            return None
+
+        if peer.state == 'up':
+            return []
+        self._send_to_server({
+            'msg_type': 'peer_up', 'peer_ip': str(peer.peer_ip), 'peer_as': peer.peer_as,
+            'local_ip': str(self.routerid), 'local_as': peer.local_as, 'state': 'up'})
+        msgs = []
+        peer.bgp_session_up()
+        # for each prefix, advertise non-best path if it is configured, otherwise advertise best path
+        for prefix, routes in self.bgp.loc_rib.items():
+            gateway = None
+            pathid = None
+            route = non_best_route(peer, routes)
+            if route:
+                gateway = self._get_vip(route.nexthop, peer.vlan)
+                pathid = self._get_pathid(route.nexthop)
+                self._update_mapping(gateway, pathid, peer.dp_id, peer.vlan_vid)
+                learned_peer = self.peers[route.learned_from_peer]
+                self._update_fib(prefix, route.nexthop, learned_peer.dp_id, learned_peer.vlan_vid, pathid)
+            else:
+                route = best_route(prefix)
+            msgs.extend(self.bgp.announce(peer, route, gateway))
+        return msgs
+
+    def _peer_bgp_down(self, peer):
+        if peer.state == 'down':
+            return []
+        self._send_to_server({'msg_type': 'peer_down', 'peer_ip': str(peer.peer_ip)})
+        msgs = []
+        for route in peer._rib_in.values():
+            msgs.extend(self.path_change_handler(peer, route, True))
+        peer.bgp_session_down()
+        return msgs
+
+    def _peer_connected(self, peer, dp_id, vlan_vid, port_no):
+        if peer.is_connected:
+            return []
+        peer.connected(dp_id, vlan_vid, port_no)
+        self._send_to_server({
+            'msg_type': 'nexthop_up', 'routerid': str(self.routerid),
+            'nexthop': str(peer.peer_ip), 'pathid': self._get_pathid(peer.peer_ip),
+            'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
+            'vlan_vid': kwargs['vlan_vid']})
+        return []
+
+    def _peer_disconnected(self, peer):
+        if not peer.is_connected:
+            return []
+        peer.disconnected()
+        self._send_to_server({
+            'msg_type': 'nexthop_down', 'routerid': str(self.routerid),
+            'nexthop': str(peer.peer_ip)})
+        return []
+
     def _peer_state_change(self, peer_ip, state, **kwargs):
         peer = self.peers[peer_ip]
-        msg_type = None
         method = None
-        msg = {}
+        kwargs['peer'] = peer
         if state == 'up':
-            msg = {
-                    'msg_type': 'peer_up', 'peer_ip': str(peer_ip), 'peer_as': peer.peer_as,
-                    'local_ip': str(self.routerid), 'local_as': peer.local_as, 'state': 'up'}
-            method = None if peer.state == 'up' else self.bgp.peer_up
-            kwargs['peer_ip'] = peer_ip
+            method = self._peer_bgp_up
         elif state == 'down':
-            msg = {'msg_type': 'peer_down', 'peer_ip': str(peer_ip)}
-            method = None if peer.state =='down' else self.bgp.peer_down
-            kwargs['peer_ip'] = peer_ip
+            method = self._peer_bgp_down
         elif state == 'connected':
-            msg = {
-                    'msg_type': 'nexthop_up', 'routerid': str(self.routerid),
-                    'nexthop': str(peer_ip), 'pathid': self._get_pathid(peer_ip),
-                    'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
-                    'vlan_vid': kwargs['vlan_vid']}
-            method = None if peer.is_connected else peer.connected
+            method = self._peer_connected
         elif state == 'disconnected':
-            msg = {'msg_type': 'nexthop_down', 'routerid': str(self.routerid), 'nexthop': str(peer_ip)}
-            method = None if not peer.is_connected else peer.disconnected
-        if method and msg:
-            self._send_to_server(msg)
+            method = self._peer_disconnected
+        if method:
             return method(**kwargs)
         return []
 

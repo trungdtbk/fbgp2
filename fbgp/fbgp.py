@@ -315,8 +315,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         self._send_to_server({
             'msg_type': 'nexthop_up', 'routerid': str(self.routerid),
             'nexthop': str(peer.peer_ip), 'pathid': self._get_pathid(peer.peer_ip),
-            'dp_id': kwargs['dp_id'], 'port_no': kwargs['port_no'],
-            'vlan_vid': kwargs['vlan_vid']})
+            'dp_id': dp_id, 'port_no': port_no, 'vlan_vid': vlan_vid})
         return []
 
     def _peer_disconnected(self, peer):
@@ -347,7 +346,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _process_exabgp_msg(self, msg):
         """Process message received from ExaBGP."""
         self.logger.debug('processing msg from exabgp: %r' % msg)
-        if msg in ['done', 'error']:
+        if msg in ['done', 'error'] or not msg:
             return []
         try:
             msg = json.loads(msg)
@@ -379,7 +378,7 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _process_bgp_update(self, peer_ip, update):
         """Process a BGP update received from ExaBGP."""
-        self.logger.info('processing update: %s' % update)
+        self.logger.info('processing update from %s: %s' % (peer_ip, update))
         try:
             msgs = []
             if peer_ip not in self.peers:

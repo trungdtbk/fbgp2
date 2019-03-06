@@ -13,7 +13,7 @@ import traceback
 class Route:
     """Represent a BGP route to a prefix."""
 
-    def __init__(self, prefix, nexthop, **attributes):
+    def __init__(self, peerip, prefix, nexthop, **attributes):
         self.prefix = prefix
         self.nexthop = nexthop
         self.local_pref = attributes.get('local_pref') or 100
@@ -21,6 +21,7 @@ class Route:
         self.med = attributes.get('med') or 0
         self.origin = attributes.get('origin') or 'incomplete'
         self.community = attributes.get('community')
+        self.learned_from_peer = peerip
 
     def to_exabgp(self, peer=None, is_withdraw=False, gw=None):
         line = ''
@@ -144,7 +145,7 @@ class BgpPeer:
 
     def rcv_announce(self, prefix, nexthop, **attributes):
         """Process a route announced by this peer."""
-        route = Route(prefix, nexthop, **attributes)
+        route = Route(self.peer_ip, prefix, nexthop, **attributes)
         if prefix in self._rib_in and self._rib_in[prefix] == route:
             return
         self._rib_in[prefix] = route
@@ -262,29 +263,6 @@ class BgpRouter():
             self.best_routes[prefix] = new_best_route
             return new_best_route
         return
-
-    def peer_up(self, peer_ip):
-        msgs = []
-        if peer_ip not in self.peers or self.peers[peer_ip].state == 'up':
-            return msgs
-        peer = self.peers[peer_ip]
-        peer.bgp_session_up()
-        for route in self.best_routes.values():
-            msgs.extend(self._announce(peer, route))
-        return msgs
-
-    def peer_down(self, peer_ip):
-        msgs = []
-        if peer_ip not in self.peers or self.peers[peer_ip].state == 'down':
-            return msgs
-        peer = self.peers[peer_ip]
-        for route in peer.routes():
-            new_best = self.del_route(route)
-            if new_best:
-                for other_peer in self._other_peers(peer):
-                    msgs.extend(self._announce(other_peer, new_best))
-        peer.bgp_session_down()
-        return msgs
 
     @staticmethod
     def announce(peer, route, gateway=None):

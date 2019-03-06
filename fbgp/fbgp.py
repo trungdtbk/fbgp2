@@ -52,7 +52,6 @@ class FlowBasedBGP(app_manager.RyuApp):
         self.faucet_api = kwargs['faucet_experimental_api']
         self.nexthop_to_pathid = {}
         self.path_mapping = collections.defaultdict(set)
-        self.vlan_peers = collections.defaultdict(set)
         self.vip_assignment = {}
 
     def stop(self):

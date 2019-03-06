@@ -208,30 +208,32 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _add_mapping(self, peer_ip, prefix, nexthop, egress=None, pathid=None):
         """create a mapping between a peer and a route.
         egress is None assuming the nexthop is local"""
-        if pathid is None and egress is None: # this is the local route
+        if pathid is None and egress is None or self.routerid == egress: # this is the local route
             peer = self.peers[peer_ip]
             self.path_mapping[prefix, nexthop].add(peer)
             vip = self._get_vip(nexthop, peer.vlan)
             if not vip:
-                return
-            pathid = self._get_pathid(nexthop)
+                return []
+            mypathid = self._get_pathid(nexthop)
+            if mypathid != pathid:
+                self.logger.error('There must be something wrong, pathids differ')
+                return []
             route = self._route_by_nexthop(prefix, nexthop)
             if route:
-                self.faucet_api.add_ext_vip(vip, pathid=pathid, dpid=peer.dp_id, vid=peer.vlan_vid)
-                self.faucet_api.add_route(
-                    prefix, nexthop, dpid=peer.dp_id, vid=peer.vlan_vid, pathid=pathid)
-                for msg in self.bgp.announce(peer, route, gateway=vip):
-                    self._send_to_exabgp(msg)
+                self._update_mapping(vip, pathid, peer.dp_id, peer.vlan_vid)
+                learned_peer = self.peers[route.learned_from_peer]
+                self._update_fib(prefix, nexthop, learned_peer.dp_id, learned_peer.vlan_vid, pathid)
+            return self.bgp.announce(peer, route, gateway=vip)
         else:
             #TODO: handle the case when route is remote
-            pass
+            return []
 
     def _del_mapping(self, peer_ip, prefix, nexthop, egress=None, pathid=None):
         msgs = []
         if egress is None and pathid is None:
             peer = self.peers[peer_ip]
             if peer not in self.path_mapping[prefix, nexthop]:
-                return
+                return []
             best_route = self.bgp.best_routes.get(prefix)
             if best_route:
                 # advertise best route instead
@@ -239,8 +241,7 @@ class FlowBasedBGP(app_manager.RyuApp):
             else:
                 route = self._route_by_nexthop(prefix, nexthop)
                 msgs = self.bgp.withdraw(peer, route)
-        for msg in msgs:
-            self._send_to_exabgp(msg)
+        return msgs
 
     def _notify_route_change(self, peer_ip, route, withdraw=False):
         """notify the route server about a route."""
@@ -440,40 +441,52 @@ class FlowBasedBGP(app_manager.RyuApp):
         msgs = []
         msg_type = msg['msg_type']
         msg = msg['msg']
-        if msg_type == 'server_connected':
-            #TODO: process server connected event
-            self.logger.info('Connected to server: %s' % msg)
-            self.register()
-        elif msg_type == 'server_disconnected':
-            #TODO: process server disconnected event
-            self.logger.info('Disconnected from server: %s' % msg)
-            self.deregister()
-        elif msg_type == 'server_command':
-            #TODO: process server commands
-            self.logger.info('Receive msg from server: %s' % msg)
-            command = msg['command']
-            prefix = ipaddress.ip_network(msg['prefix'])
-            nexthop = ipaddress.ip_address(msg['nexthop'])
-            egress = ipaddress.ip_address(msg['egress']) if 'egress' in msg else None
-            pathid = int(msg['pathid']) if 'pathid' in msg else None
-            peerip = ipaddress.ip_address(msg['peerip']) if 'peerip' in msg else None
-            if peerip is None: # override the best path selected by BGP
-                best_route = self.bgp.best_routes.get(prefix)
-                if best_route.nexthop == nexthop:
-                    return
-                route = self._route_by_nexthop(prefix, nexthop)
-                if not route:
-                    return
-                self.bgp.best_routes[prefix] = route
-                for peer in self.peers.values():
-                    if peer.peer_ip == route.nexthop:
-                        continue
-                    msgs.extend(self.bgp.announce(peer, route))
-            else:
-                peer = self.peers[peerip]
-                if command == 'add_mapping':
-                    self._add_mapping(peerip, prefix, nexthop, egress, pathid)
-                elif command == 'del_mapping':
-                    self._del_mapping(peerip, prefix, nexthop, egress, pathid)
+        try:
+            if type(msg) == str:
+                msg = json.loads(msg)
+            if msg_type == 'server_connected':
+                #TODO: process server connected event
+                self.logger.info('Connected to server: %s' % msg)
+                self.register()
+            elif msg_type == 'server_disconnected':
+                #TODO: process server disconnected event
+                self.logger.info('Disconnected from server: %s' % msg)
+                self.deregister()
+            elif msg_type == 'server_command':
+                #TODO: process server commands
+                self.logger.info('Receive msg from server: %s' % msg)
+                command = msg.get('command')
+                if command in ['add_mapping', 'del_mapping']:
+                    routerid = ipaddress.ip_address(msg['routerid'])
+                    prefix = ipaddress.ip_network(msg['prefix'])
+                    nexthop = ipaddress.ip_address(msg['nexthop'])
+                    egress = ipaddress.ip_address(msg['egress'])
+                    pathid = int(msg['pathid'])
+                    for_peer = msg['for_peer']
+                    if for_peer:
+                        peer = self.peers[routerid]
+                        if command == 'add_mapping':
+                            msgs = self._add_mapping(routerid, prefix, nexthop, egress, pathid)
+                        elif command == 'del_mapping':
+                            msgs = self._del_mapping(routerid, prefix, nexthop, egress, pathid)
+                    else:
+                        best_route = self.bgp.best_routes.get(prefix)
+                        if best_route.nexthop == nexthop:
+                            return
+                        route = self._route_by_nexthop(prefix, nexthop)
+                        if not route:
+                            return
+                        self.bgp.best_routes[prefix] = route
+                        learned_peer = self.peers[route.learned_from_peer]
+                        self._update_fib(route.prefix, route.nexthop, learned_peer.dp_id, learned_peer.vlan_vid)
+                        for peer in self.peers.values():
+                            if peer.peer_ip == route.learned_from_peer:
+                                continue
+                            msgs.extend(self.bgp.announce(peer, route))
+                elif command == 'add_tunnel':
+                    pass
             for msg in msgs:
                 self._send_to_exabgp(msg)
+        except Exception as e:
+            print(e, msg)
+            traceback.print_exc()

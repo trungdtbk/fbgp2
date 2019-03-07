@@ -25,7 +25,7 @@ class Route:
 
     def to_exabgp(self, peer=None, is_withdraw=False, gw=None):
         line = ''
-        gateway = gw or peer.faucet_vip
+        gateway = gw or peer.faucet_vip.ip
         if peer:
             line = 'neighbor %s' % peer.peer_ip
         if is_withdraw:

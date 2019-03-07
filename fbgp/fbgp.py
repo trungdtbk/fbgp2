@@ -99,7 +99,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                         peer.vlan = vlan
                         faucet_vips = vlan.faucet_vips_by_ipv(peer_ip.version)
                         if faucet_vips:
-                            peer.faucet_vip = list(faucet_vips)[0].ip
+                            peer.faucet_vip = list(faucet_vips)[0]
                 self.peers[peer_ip] = peer
             self.borders = {}
             for border_conf in config.pop('borders'):
@@ -292,6 +292,10 @@ class FlowBasedBGP(app_manager.RyuApp):
             'local_ip': str(self.routerid), 'local_as': peer.local_as, 'state': 'up'})
         msgs = []
         peer.bgp_session_up()
+        # advertise local subnets
+        prefixes = set([str(p.faucet_vip.network) for p in self.peers.values() if p.faucet_vip])
+        for prefix in prefixes:
+            msgs.extend(self.bgp.announce_prefix(peer, prefix))
         # for each prefix, advertise non-best path if it is configured, otherwise advertise best path
         for prefix, routes in self.bgp.loc_rib.items():
             gateway = None

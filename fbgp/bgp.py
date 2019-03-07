@@ -266,6 +266,12 @@ class BgpRouter():
         return
 
     @staticmethod
+    def announce_prefix(peer, prefix):
+        msgs = []
+        route = Route(peerip=None, prefix=ipaddress.ip_network(prefix), nexthop=None)
+        return BgpRouter.announce(peer, route)
+
+    @staticmethod
     def announce(peer, route, gateway=None):
         msgs = []
         route = peer.announce(route)

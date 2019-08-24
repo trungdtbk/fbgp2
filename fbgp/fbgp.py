@@ -165,6 +165,7 @@ class FlowBasedBGP(app_manager.RyuApp):
             self._update_fib(new_best.prefix, new_best.nexthop, peer.dp_id, peer.vlan_vid)
 
         for other_peer in self._other_peers(peer):
+            self.logger.info('advertising new path to peer: %s' % other_peer.peer_ip)
             if other_peer in self.path_mapping[route.prefix, route.nexthop]:
                 gateway = self._get_vip(route.nexthop, other_peer.vlan)
                 pathid = self._get_pathid(route.nexthop)

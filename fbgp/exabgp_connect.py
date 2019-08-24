@@ -121,3 +121,4 @@ neighbor %s {
     def send(self, msg):
         if self.conn:
             self.conn.send(msg)
+            self.logger.debug('sent msg <%s> to ExaBGP' % msg)

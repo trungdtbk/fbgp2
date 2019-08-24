@@ -185,6 +185,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                     self._update_fib(
                         route.prefix, route.nexthop, peer.dp_id, peer.vlan_vid, pathid)
             elif new_best:
+                self.logger.debug('checking if route %s can be announced to peer: %s' % (new_best, other_peer.peer_ip))
                 msgs.extend(self.bgp.announce(other_peer, new_best))
         return msgs
 
@@ -265,7 +266,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _send(self, connector, msg):
         if connector:
             connector.send(msg)
-            self.logger.info('sent a msg to %s: %s' % (connector.__class__.__name__, msg))
+            self.logger.debug('sent a msg to %s: %s' % (connector.__class__.__name__, msg))
 
     def _send_to_server(self, msg):
         self._send(self.server_connect, msg)

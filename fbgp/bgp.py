@@ -9,6 +9,8 @@ import operator
 import collections
 import traceback
 
+from threading import Lock
+
 
 class Route:
     """Represent a BGP route to a prefix."""
@@ -96,6 +98,7 @@ class BgpPeer:
                  dp_id=None, vlan_vid=None, port_no=None, vlan=None):
         self.import_policy = Policy.default() # default accept everything
         self.export_policy = Policy.default() # default accept everything
+        self.lock = Lock() # need this as race condition occurs
 
         self.peer_ip = peer_ip
         self.peer_as = peer_as
@@ -117,22 +120,28 @@ class BgpPeer:
 
     def bgp_session_up(self):
         """BGP session with the peer is up."""
+        self.lock.acquire()
         self._rib_in = {}
         self._rib_out = {}
         self.state = 'up'
+        self.lock.release()
 
     def bgp_session_down(self):
         """BGP session with the peer is down."""
+        self.lock.acquire()
         self.state = 'down'
         self._rib_in = {}
         self._rib_out = {}
+        self.lock.release()
 
     def connected(self, dp_id, vlan_vid, port_no):
         """The peer is connected to our dataplane."""
+        self.lock.acquire()
         self.dp_id = dp_id
         self.vlan_vid = vlan_vid
         self.port_no = port_no
         self.is_connected = True
+        self.lock.release()
 
     def disconnected(self):
         """The peer is disconnected physically."""
@@ -146,30 +155,47 @@ class BgpPeer:
 
     def rcv_announce(self, prefix, nexthop, **attributes):
         """Process a route announced by this peer."""
-        route = Route(self.peer_ip, prefix, nexthop, **attributes)
-        if prefix in self._rib_in and self._rib_in[prefix] == route:
-            return
-        self._rib_in[prefix] = route
-        return self.import_policy.evaluate(route)
+        ret_route = None
+        self.lock.acquire()
+        try:
+            route = Route(self.peer_ip, prefix, nexthop, **attributes)
+            if not (prefix in self._rib_in and self._rib_in[prefix] == route):
+                self._rib_in[prefix] = route
+                ret_route = self.import_policy.evaluate(route)
+        except:
+            pass
+        self.lock.release()
+        return ret_route
 
     def withdraw(self, route):
         """Withdraw a route previously announced to this peer."""
-        if route is None:
-            return
-        if route.prefix in self._rib_out:
-            return self._rib_out.pop(route.prefix)
+        ret_route = None
+        self.lock.acquire()
+        try:
+            if route is not None and route.prefix in self._rib_out:
+                ret_route = self._rib_out.pop(route.prefix)
+        except:
+            pass
+        self.lock.release()
+        return ret_route
 
     def announce(self, route):
         """Announce a route to this peer."""
-        if route is None or route.prefix in self._rib_in:
-            return
-        out = self.export_policy.evaluate(route.copy())
-        if out:
-            out.as_path = [self.local_as] + out.as_path
-            if self.local_as != self.peer_as:
-                out.local_pref = None
-            self._rib_out[out.prefix] = out
-        return out
+        ret_route = None
+        self.lock.acquire()
+        try:
+            if route is None or route.prefix in self._rib_in:
+                return
+            ret_route = self.export_policy.evaluate(route.copy())
+            if ret_route:
+                ret_route.as_path = [self.local_as] + ret_route.as_path
+                if self.local_as != self.peer_as:
+                    ret_route.local_pref = None
+                self._rib_out[ret_route.prefix] = ret_route
+        except:
+            pass
+        self.lock.release()
+        return ret_route
 
     def routes(self):
         return self._rib_in.values()

@@ -187,6 +187,8 @@ class FlowBasedBGP(app_manager.RyuApp):
             elif new_best:
                 self.logger.debug('checking if route %s can be announced to peer: %s' % (new_best, other_peer.peer_ip))
                 msgs.extend(self.bgp.announce(other_peer, new_best))
+                self.logger.debug(msgs)
+                self.logger.debug(other_peer._rib_in)
         return msgs
 
     def register(self):

@@ -13,6 +13,7 @@ import sys
 import socket, logging
 import logging
 
+from threading import Lock
 from multiprocessing.connection import Listener
 
 from fbgp.cfg import CONF
@@ -58,6 +59,7 @@ neighbor %s {
         self.exabgp = None
         self.running = False
         self.recv_queue = eventlet.Queue(128)
+        self.lock = Lock()
 
     def _clean(self):
         pass
@@ -74,13 +76,25 @@ neighbor %s {
             while self.running:
                 try:
                     data = self.conn.recv()
-                    self.handler(data)
+                    self.recv_queue.put(data)
                 except:
                     break
+
+    def _process_msg(self):
+        while self.running:
+            msg = self.recv_queue.get()
+            self.lock.acquire()
+            try:
+                self.handler(msg)
+            except Exception as e:
+                self.logger.error('Error %s when handling %s' % (e, msg))
+                pass
+            self.lock.release()
 
     def start(self):
         self.logger.info('starting ExaBGP...')
         self.running = True
+        eventlet.spawn(self._process_msg)
         eventlet.spawn(self._run)
         self.logger.info('ExaBGP listener started')
         self.exabgp_cfg_file = os.environ.get('FBGP_EXABGP_CONFIG', '/etc/fbgp/exabgp.conf')

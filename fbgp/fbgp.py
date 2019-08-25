@@ -76,6 +76,9 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
         self.valves = self.faucet_api.faucet.valves_manager.valves
+        if not self.valves:
+            self.logger.error('Exitting...failed to get info from Faucet (Faucet probably has failed)')
+            self.close()
         self.vlans = {}
         for dp in [valve.dp for valve in self.valves.values()]:
             self.vlans.update(dp.vlans)

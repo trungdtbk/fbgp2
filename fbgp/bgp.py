@@ -165,8 +165,8 @@ class BgpPeer:
             return
         out = self.export_policy.evaluate(route.copy())
         if out:
-            out.as_path = [self.local_as] + out.as_path
             if self.local_as != self.peer_as:
+                out.as_path = [self.local_as] + out.as_path
                 out.local_pref = None
             self._rib_out[out.prefix] = out
         return out

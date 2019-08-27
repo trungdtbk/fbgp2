@@ -76,7 +76,8 @@ neighbor %s {
             while self.running:
                 try:
                     data = self.conn.recv()
-                    self.recv_queue.put(data)
+                    if data:
+                        self.recv_queue.put(data)
                 except:
                     break
 
@@ -94,12 +95,12 @@ neighbor %s {
     def start(self):
         self.logger.info('starting ExaBGP...')
         self.running = True
-        eventlet.spawn(self._process_msg)
-        eventlet.spawn(self._run)
         self.logger.info('ExaBGP listener started')
         self.exabgp_cfg_file = os.environ.get('FBGP_EXABGP_CONFIG', '/etc/fbgp/exabgp.conf')
         self.sock_path = os.environ.get('FBGP_EXABGP_SOCK', '/var/log/fbgp/exabgp_hook.sock')
         self.exabgp_hook_log = os.environ.get('FBGP_EXABGP_HOOK_LOG', '/var/log/fbgp/exabgp_hook.log')
+        eventlet.spawn(self._process_msg)
+        eventlet.spawn(self._run)
         # locate exabgp_hook
         hook = subprocess.run(['which', 'fbgp_exabgp_hook'], stdout=subprocess.PIPE)
         hook_loc = hook.stdout.decode('utf-8').strip()

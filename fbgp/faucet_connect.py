@@ -17,10 +17,13 @@ class FaucetConnect():
         self.running = False
         sock_path = faucet_sock_path or os.environ.get('FAUCET_EVENT_SOCK')
         if sock_path:
-            self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.socket.connect(sock_path)
-            self.sock_file = self.socket.makefile('rb')
-            self.logger.info('connected to Faucet event')
+            try:
+                self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.socket.connect(sock_path)
+                self.sock_file = self.socket.makefile('rb')
+                self.logger.info('connected to Faucet event')
+            except Exception as e:
+                self.logger.error("Cannot connect to Faucet event: %s" % e)
 
     def start(self):
         self.logger.info('start faucet event listener')

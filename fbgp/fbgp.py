@@ -57,6 +57,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
         super(FlowBasedBGP, self).stop()
+        sys.exit()
 
     @set_ev_cls(faucet.EventFaucetExperimentalAPIRegistered)
     def initialize(self, ev=None):
@@ -72,12 +73,12 @@ class FlowBasedBGP(app_manager.RyuApp):
             self.logger.info('Created connector: %s' % name)
         for name in ['faucet_connect', 'exabgp_connect', 'server_connect']:
             connector = getattr(self, name)
-            if connector.start():
+            t = connector.start()
+            if t is not None:
                 self.logger.info('Connector %s started' % name)
             else:
                 self.logger.info('Connector %s failed to start' % name)
                 self.stop()
-
 
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')

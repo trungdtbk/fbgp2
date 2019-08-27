@@ -41,8 +41,6 @@ class FaucetConnect():
                     if data:
                         data = data.decode('utf-8')
                         self._process_faucet_event(data.strip())
-                    else:
-                        break
                 except:
                     traceback.print_exc()
                     break

@@ -10,7 +10,7 @@ WORKDIR /fbgp
 
 #ADD tests/faucet.yaml /etc/fbgp
 #ADD tests/fbgp.yaml /etc/fbgp
-VOLUME [/etc/fbgp, /var/log/fbgp]
+VOLUME [ /etc/fbgp, /var/log/fbgp ]
 
 ENV PYTHONPATH=/fbgp:/fbgp/faucet FAUCET_CONFIG=/etc/fbgp/faucet.yaml
 ENV FAUCET_LOG=/var/log/fbgp/faucet.log

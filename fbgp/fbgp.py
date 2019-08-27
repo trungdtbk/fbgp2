@@ -46,7 +46,7 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(FlowBasedBGP, self).__init__(*args, **kwargs)
-        self.logger = get_logger('fbgp.main',
+        self.logger = get_logger('fbgp',
                 os.environ.get('FBGP_LOG', None),
                 os.environ.get('FBGP_LOG_LEVEL', 'info'))
         self.faucet_api = kwargs['faucet_experimental_api']

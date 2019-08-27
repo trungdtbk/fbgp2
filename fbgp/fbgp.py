@@ -366,9 +366,9 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _process_exabgp_msg(self, msg):
         """Process message received from ExaBGP."""
-        self.logger.debug('processing msg from exabgp: %r' % msg)
         if msg in ['done', 'error'] or not msg:
             return []
+        self.logger.debug('processing msg from exabgp: %r' % msg)
         try:
             msg = json.loads(msg)
             if msg.get('type') == 'notification':

@@ -113,7 +113,7 @@ neighbor %s {
                     peer.local_ip, peer.local_as, self.routerid)
                 f.write(peer_config + '\n')
         self.exabgp = subprocess.Popen(
-            ['env', 'exabgp.tcp.bind=' + '0.0.0.0', 'exabgp.tcp.port=' + '1179',
+            ['env', 'exabgp.tcp.bind=' + '0.0.0.0', 'exabgp.tcp.port=' + '9179',
              'exabgp.daemon.daemonize=false', 'exabgp.daemon.user=root',
              'exabgp.log.level=' + log_level, 'exabgp.log.all=true',
              'exabgp.log.destination=' + self.exabgp_hook_log,
@@ -121,13 +121,15 @@ neighbor %s {
              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.logger.info('started ExaBGP subprocess')
         try:
-            (dout, derr) = self.exabgp.communicate(timeout=10)
+            (dout, derr) = self.exabgp.communicate(timeout=30)
             self.logger.info(derr)
         except subprocess.TimeoutExpired:
             self.logger.info('ExaBGP is running')
         except Exception as e:
             returncode = self.exabgp.poll()
-            self.logger.info('ExaBGP failed to start, return code: %s, exec: %s' % (returncode, e))
+            (dout, derr) = self.exabgp.communicate(timeout=1)
+            self.logger.error('ExaBGP failed to start, return code: %s, exec: %s' % (returncode, type(e)))
+            self.logger.error(dout, derr)
             return None
         return self.exabgp
 

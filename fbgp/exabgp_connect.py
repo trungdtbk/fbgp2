@@ -95,13 +95,13 @@ neighbor %s {
     def start(self):
         self.logger.info('starting ExaBGP...')
         self.running = True
-        self.logger.info('ExaBGP listener started')
         self.exabgp_cfg_file = os.environ.get('FBGP_EXABGP_CONFIG', '/etc/fbgp/exabgp.conf')
         self.sock_path = os.environ.get('FBGP_EXABGP_SOCK', '/var/log/fbgp/exabgp_hook.sock')
         self.exabgp_hook_log = os.environ.get('FBGP_EXABGP_HOOK_LOG', '/var/log/fbgp/exabgp_hook.log')
         log_level = os.environ.get('FBGP_LOG_LEVEL', 'INFO').upper()
         eventlet.spawn(self._process_msg)
         eventlet.spawn(self._run)
+        self.logger.info('ExaBGP listener started')
         # locate exabgp_hook
         hook = subprocess.run(['which', 'fbgp_exabgp_hook'], stdout=subprocess.PIPE)
         hook_loc = hook.stdout.decode('utf-8').strip()
@@ -112,7 +112,6 @@ neighbor %s {
                     peer.peer_ip, peer.peer_port, peer.peer_as,
                     peer.local_ip, peer.local_as, self.routerid)
                 f.write(peer_config + '\n')
-        self.logger.info('start ExaBGP subprocess')
         self.exabgp = subprocess.Popen(
             ['env', 'exabgp.tcp.bind=' + '0.0.0.0', 'exabgp.tcp.port=' + '1179',
              'exabgp.daemon.daemonize=false', 'exabgp.daemon.user=root',
@@ -120,6 +119,7 @@ neighbor %s {
              'exabgp.log.destination=' + self.exabgp_hook_log,
              'exabgp', self.exabgp_cfg_file],
              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.logger.info('started ExaBGP subprocess')
         try:
             (dout, derr) = self.exabgp.communicate(timeout=10)
             self.logger.info(derr)
@@ -127,7 +127,7 @@ neighbor %s {
             self.logger.info('ExaBGP is running')
         except Exception as e:
             returncode = self.exabgp.poll()
-            self.logger.info('ExaBGP failed to start, return code: %s' % returncode)
+            self.logger.info('ExaBGP failed to start, return code: %s, exec: %s' % (returncode, e))
             return None
         return self.exabgp
 

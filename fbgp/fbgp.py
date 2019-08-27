@@ -67,10 +67,12 @@ class FlowBasedBGP(app_manager.RyuApp):
                 ('exabgp_connect', ExaBgpConnect, {'handler': self._process_exabgp_msg,
                                                    'peers': self.peers, 'routerid': self.routerid}),
                 ('server_connect', ServerConnect, {'handler': self._process_server_msg})]:
+            self.logger.info('Creating connector: %s' % name)
             connector = connector_cls(**kwargs)
             setattr(self, name, connector)
         for name in ['faucet_connect', 'exabgp_connect', 'server_connect']:
             connector = getattr(self, name)
+            self.logger.info('Starting connector: %s' % name)
             connector.start()
 
     def _load_config(self):

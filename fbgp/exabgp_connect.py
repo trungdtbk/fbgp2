@@ -123,7 +123,7 @@ neighbor %s {
         try:
             (dout, derr) = self.exabgp.communicate(timeout=30)
             self.logger.info(derr)
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             self.logger.info('ExaBGP is running')
         except Exception as e:
             returncode = self.exabgp.poll()

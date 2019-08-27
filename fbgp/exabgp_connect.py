@@ -127,9 +127,7 @@ neighbor %s {
             self.logger.info('ExaBGP is running')
         except Exception as e:
             returncode = self.exabgp.poll()
-            (dout, derr) = self.exabgp.communicate(timeout=1)
             self.logger.error('ExaBGP failed to start, return code: %s, exec: %s' % (returncode, type(e)))
-            self.logger.error(dout, derr)
             return None
         return self.exabgp
 

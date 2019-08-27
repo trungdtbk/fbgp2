@@ -72,15 +72,20 @@ class FlowBasedBGP(app_manager.RyuApp):
             self.logger.info('Created connector: %s' % name)
         for name in ['faucet_connect', 'exabgp_connect', 'server_connect']:
             connector = getattr(self, name)
-            connector.start()
-            self.logger.info('Started connector: %s' % name)
+            if connector.start():
+                self.logger.info('Connector %s started' % name)
+            else:
+                self.logger.info('Connector %s failed to start' % name)
+                self.stop()
+
 
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
         self.valves = self.faucet_api.faucet.valves_manager.valves
         if not self.valves:
             self.logger.error('Exitting...failed to get info from Faucet (Faucet probably has failed)')
-            self.close()
+            self.stop()
+
         self.vlans = {}
         for dp in [valve.dp for valve in self.valves.values()]:
             self.vlans.update(dp.vlans)

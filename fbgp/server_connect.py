@@ -43,7 +43,7 @@ class ServerConnect(ReconnectingClientFactory):
         self.running = False
         self.handler = handler
         self.server_addr = os.environ.get('FBGP_SERVER_ADDR') or 'localhost'
-        self.server_port = int(os.environ.get('FBGP_SERVER_PORT')) or 9999
+        self.server_port = int(os.environ.get('FBGP_SERVER_PORT') or 9999)
 
     def send(self, data):
         """Send data (string or dict) to the route server."""

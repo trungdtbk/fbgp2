@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-import socket, sys, os, traceback
+import socket
+import sys
+import os
+import traceback
 import time
 import eventlet
 eventlet.monkey_patch()
@@ -12,7 +15,7 @@ class ExabgpHook():
 
     def __init__(self, sock_path):
         self.conn = None
-        self.sock_path = sock_path
+        self.sock_path = os.environ.get('FBGP_EXABGP_SOCK', '/var/log/fbgp/exabgp_hook.sock')
         self.running = False
 
     def run_forever(self):

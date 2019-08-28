@@ -101,6 +101,7 @@ neighbor %s {
         log_level = os.environ.get('FBGP_LOG_LEVEL', 'INFO').upper()
         eventlet.spawn(self._process_msg)
         eventlet.spawn(self._run)
+        time.sleep(5) # wait for the listener to start
         self.logger.info('ExaBGP listener started')
         # locate exabgp_hook
         hook = subprocess.run(['which', 'fbgp_exabgp_hook'], stdout=subprocess.PIPE)

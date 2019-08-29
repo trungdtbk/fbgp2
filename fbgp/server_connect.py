@@ -57,7 +57,7 @@ class ServerConnect(ReconnectingClientFactory):
         return True
 
     def start(self):
-        reactor.connectTCP(self.server_addr, self.server_port, self, timeout=1) #pylint: disable=no-member
+        reactor.connectTCP(self.server_addr, self.server_port, self, timeout=10) #pylint: disable=no-member
         t = eventlet.spawn(reactor.run) #pylint: disable=no-member
         eventlet.sleep(0)
         return t

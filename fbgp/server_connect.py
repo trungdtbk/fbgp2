@@ -13,6 +13,7 @@ from twisted.internet import reactor, protocol
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 
+logger = logging.getLogger('fbgp.server_connect')
 
 class RouteServerProtocol(LineReceiver):
 
@@ -66,12 +67,16 @@ class ServerConnect(ReconnectingClientFactory):
         reactor.stop() #pylint: disable=no-member
 
     def clientConntionFailed(self, connector, reason):
+        logger.error('Failed to connect to gRCP server: %s' % reason)
         ReconnectingClientFactory.clientConnectionFailed(self, connector, reason)
 
     def clientConnectionLost(self, connector, reason):
+        logger.error('Lost connection to gRCP server: %s' % reason)
         ReconnectingClientFactory.clientConnectionLost(self, connector, reason)
 
+
     def buildProtocol(self, addr):
+        logger.info('Connected to gRCP server: %s' % addr)
         self.resetDelay()
         self.proto = RouteServerProtocol(self.handler)
         return self.proto

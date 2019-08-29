@@ -129,7 +129,6 @@ neighbor %s {
         except Exception as e:
             returncode = self.exabgp.poll()
             self.logger.error('ExaBGP failed to start, return code: %s, exec: %s' % (returncode, type(e)))
-            return None
         return self.exabgp
 
     def stop(self):

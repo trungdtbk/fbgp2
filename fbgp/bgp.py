@@ -161,7 +161,9 @@ class BgpPeer:
 
     def announce(self, route):
         """Announce a route to this peer."""
-        if route is None or route.prefix in self._rib_in:
+        if route is None:
+            return
+        if route.prefix in self._rib_in and self.peer_as in route.as_path[:1]:
             return
         out = self.export_policy.evaluate(route.copy())
         if out:

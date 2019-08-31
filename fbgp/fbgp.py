@@ -202,7 +202,6 @@ class FlowBasedBGP(app_manager.RyuApp):
             self._update_fib(new_best.prefix, new_best.nexthop, peer.dp_id, peer.vlan_vid)
 
         for other_peer in self._other_peers(peer):
-            self.logger.info('advertising new path to peer: %s' % other_peer.peer_ip)
             if other_peer in self.path_mapping[route.prefix, route.nexthop]:
                 gateway = self._get_vip(route.nexthop, other_peer.vlan)
                 pathid = self._get_pathid(route.nexthop)
@@ -224,8 +223,7 @@ class FlowBasedBGP(app_manager.RyuApp):
             elif new_best:
                 self.logger.debug('checking if route %s can be announced to peer: %s' % (new_best, other_peer.peer_ip))
                 msgs.extend(self.bgp.announce(other_peer, new_best))
-                self.logger.debug(msgs)
-                self.logger.debug(other_peer._rib_in)
+                self.logger.info('advertising path %s to peer: %s' % (new_best, other_peer.peer_ip))
         return msgs
 
     def register(self):

@@ -409,7 +409,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 #TODO: handle notification
                 return []
             neighbor = msg.get('neighbor', {})
-            if not neighbor:
+            if not neighbor or neighbor.get('direction') == 'send':
                 return []
             local_ip = ipaddress.ip_address(neighbor['address']['local'])
             peer_ip = ipaddress.ip_address(neighbor['address']['peer'])

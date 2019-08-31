@@ -53,40 +53,15 @@ class FlowBasedBGP(app_manager.RyuApp):
         self.nexthop_to_pathid = {}
         self.path_mapping = collections.defaultdict(set)
         self.vip_assignment = {}
+        self._rcv_msg_q.eventlet.Queue(256)
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)
         super(FlowBasedBGP, self).stop()
         sys.exit()
 
-    @set_ev_cls(faucet.EventFaucetExperimentalAPIRegistered)
-    def initialize(self, ev=None):
-        self.logger.info('Initializing fBGP controller')
-        self._load_config()
-        for name, connector_cls, kwargs in [
-                ('faucet_connect', FaucetConnect, {'handler': self._process_faucet_msg}),
-                ('exabgp_connect', ExaBgpConnect, {'handler': self._process_exabgp_msg,
-                                                   'peers': self.peers, 'routerid': self.routerid}),
-                ('server_connect', ServerConnect, {'handler': self._process_server_msg})]:
-            connector = connector_cls(**kwargs)
-            setattr(self, name, connector)
-            self.logger.info('Created connector: %s' % name)
-        for name in ['faucet_connect', 'exabgp_connect', 'server_connect']:
-            connector = getattr(self, name)
-            t = connector.start()
-            if t is not None:
-                self.logger.info('Connector %s started' % name)
-            else:
-                self.logger.info('Connector %s failed to start' % name)
-                self.stop()
-
     def _load_config(self):
         config_file = os.environ.get('FBGP_CONFIG', '/etc/fbgp/fbgp.yaml')
-        self.valves = self.faucet_api.faucet.valves_manager.valves
-        if not self.valves:
-            self.logger.error('Exitting...failed to get info from Faucet (Faucet probably has failed)')
-            self.stop()
-
         self.vlans = {}
         for dp in [valve.dp for valve in self.valves.values()]:
             self.vlans.update(dp.vlans)
@@ -119,6 +94,57 @@ class FlowBasedBGP(app_manager.RyuApp):
                         routerid=routerid, nexthop=ipaddress.ip_address(border_conf['nexthop']))
             self.bgp = BgpRouter(self.borders, self.peers, self.path_change_handler)
             self.logger.info('config loaded')
+
+    @set_ev_cls(faucet.EventFaucetExperimentalAPIRegistered)
+    def initialize(self, ev=None):
+        self.logger.info('Initializing fBGP controller')
+        self.valves = self.faucet_api.faucet.valves_manager.valves
+        if not self.valves:
+            self.logger.error('Exitting...failed to get info from Faucet (Faucet probably has failed)')
+            self.stop()
+        eventlet.spawn(self._msg_processor)
+        self._load_config()
+        for name, connector_cls, kwargs in [
+                ('faucet_connect', FaucetConnect, {'handler': self._rcv_faucet_msg}),
+                ('exabgp_connect', ExaBgpConnect, {'handler': self._rcv_exabgp_msg,
+                                                   'peers': self.peers, 'routerid': self.routerid}),
+                ('server_connect', ServerConnect, {'handler': self._rcv_server_msg})]:
+            connector = connector_cls(**kwargs)
+            setattr(self, name, connector)
+            self.logger.info('Created connector: %s' % name)
+        for name in ['faucet_connect', 'exabgp_connect', 'server_connect']:
+            connector = getattr(self, name)
+            t = connector.start()
+            if t is not None:
+                self.logger.info('Connector %s started' % name)
+            else:
+                self.logger.info('Connector %s failed to start' % name)
+                self.stop()
+
+    def _rcv_exabgp_msg(self, msg):
+        if msg in ['done', 'error'] or not msg:
+            return
+        self.rcv_msg_q.put(('exabgp', msg))
+
+    def _rcv_faucet_msg(self, msg):
+        self.rcv_msg_q.put(('faucet', msg))
+
+    def _rcv_server_msg(self, msg):
+        self.rcv_msg_q.put(('server', msg))
+
+    def _msg_processor(self):
+        self.logger.info('Started message processor')
+        while True:
+            try:
+                (source, msg) = self.rcv_msg_q.get()
+                if source == 'exabgp':
+                    self._process_exabgp_msg(msg)
+                elif source == 'faucet':
+                    self._process_faucet_msg(msg)
+                elif source == 'server':
+                    self._process_server_msg(msg)
+            except Exception as e:
+                self.logger.error('Error when processing msg: %s from %s: %s' % (msg, source, e))
 
     def _get_pathid(self, nexthop):
         """Return a unique pathid for a nexthop."""

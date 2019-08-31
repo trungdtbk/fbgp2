@@ -53,7 +53,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         self.nexthop_to_pathid = {}
         self.path_mapping = collections.defaultdict(set)
         self.vip_assignment = {}
-        self._rcv_msg_q.eventlet.Queue(256)
+        self._rcv_msg_q = eventlet.Queue(256)
 
     def stop(self):
         self.logger.info('%s is stopping...' % self.__class__.__name__)

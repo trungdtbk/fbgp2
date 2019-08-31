@@ -481,7 +481,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 self.logger.info('Peer %s (%s) is connected' % (peer.peer_ip, peer.peer_as))
             else:
                 for border in self.borders.values():
-                    if border.nexthop == ipa:
+                    if border.nexthop == ipa and not border.is_connected:
                         border.connected(dpid, vid, port_no)
                         self.logger.info('Border %s is connected' % border.routerid)
         elif 'L2_EXPIRE' in msg:

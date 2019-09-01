@@ -353,15 +353,15 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _border_connected(self, border, dpid, vid, port_no):
         attrs = {'dp': dpid, 'vlan': vid, 'port': port_no}
-        src = self.routerid
-        dst = border.routerid
+        src = str(self.routerid)
+        dst = str(border.routerid)
         self._send_to_server({'msg_type': 'link_up', 'src': src, 'dst': dst, 'attributes': attrs})
         border.connected(dpid, vid, port_no)
         self.logger.info('Border %s is connected' % border.routerid)
 
     def _border_disconnected(self, border):
-        src = self.routerid
-        dst = border.routerid
+        src = str(self.routerid)
+        dst = str(border.routerid)
         self._send_to_server({'msg_type': 'link_down', 'src': src, 'dst': dst})
         border.disconnected()
         self.logger.info('Border %s is disconnected' % border.routerid)

@@ -423,7 +423,7 @@ class FlowBasedBGP(app_manager.RyuApp):
             for msg in msgs:
                 self._send_to_exabgp(msg)
         except Exception as e:
-            print(msg)
+            self.logger.error('Error when processing msg %s: %s' % (msg, e))
             traceback.print_exc()
 
     def _other_peers(self, peer):
@@ -461,7 +461,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                     msgs.extend(self.path_change_handler(peer, route, True))
             return msgs
         except Exception as e:
-            print(e)
+            self.logger.error('Error when processing update %s: %s' % (update, e))
             traceback.print_exc()
         return []
 
@@ -478,7 +478,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 if peer.is_connected:
                     return
                 self._peer_state_change(ipa, 'connected', dp_id=dpid, port_no=port_no, vlan_vid=vid)
-                self.logger.info('Peer %s (%s) is connected' % (peer.peer_ip, peer.peer_as))
+                self.logger.info('Peer %s (ASN: %s) is connected' % (peer.peer_ip, peer.peer_as))
             else:
                 for border in self.borders.values():
                     if border.nexthop == ipa and not border.is_connected:

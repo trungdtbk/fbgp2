@@ -45,15 +45,17 @@ class ServerConnect(ReconnectingClientFactory):
         self.handler = handler
         self.server_addr = os.environ.get('FBGP_SERVER_ADDR') or 'localhost'
         self.server_port = int(os.environ.get('FBGP_SERVER_PORT') or 9999)
+        self.send_q = eventlet.Queue(128)
 
     def send(self, data):
         """Send data (string or dict) to the route server."""
-        if not self.proto:
-            return False
         if isinstance(data, dict):
             msg = json.dumps(data)
         else:
             msg = str(data)
+        if not self.proto:
+            self.send_q.put(msg)
+            return False
         reactor.callFromThread(lambda: self.proto.send(msg.encode('utf-8'))) #pylint: disable=no-member
         return True
 
@@ -79,4 +81,10 @@ class ServerConnect(ReconnectingClientFactory):
         logger.info('Connected to gRCP server: %s' % addr)
         self.resetDelay()
         self.proto = RouteServerProtocol(self.handler)
+        while not self.send_q.empty():
+            try:
+                msg = self.send_q.get(timeout=1)
+                self.send(msg)
+            except:
+                break
         return self.proto

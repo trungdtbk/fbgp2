@@ -362,8 +362,9 @@ class FlowBasedBGP(app_manager.RyuApp):
         src = str(self.routerid)
         dst = str(border.routerid)
         self._send_to_server({'msg_type': 'link_up', 'src': src, 'dst': dst, 'attributes': attrs})
-        border.connected(dpid, vid, port_no)
-        self.logger.info('Border %s is connected' % border.routerid)
+        if border.disconnected():
+            border.connected(dpid, vid, port_no)
+            self.logger.info('Border %s is connected' % border.routerid)
 
     def _border_disconnected(self, border):
         src = str(self.routerid)
@@ -502,7 +503,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 self.logger.info('Peer %s (ASN: %s) is connected' % (peer.peer_ip, peer.peer_as))
             else:
                 for border in self.borders.values():
-                    if border.nexthop == ipa and not border.is_connected:
+                    if border.nexthop == ipa:
                         self._border_connected(border, dpid, vid, port_no)
         elif 'L2_EXPIRE' in msg:
             #TODO: handle expire event

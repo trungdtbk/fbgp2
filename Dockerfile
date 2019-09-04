@@ -4,7 +4,7 @@ RUN apk --no-cache add py-pip python3-dev gcc musl-dev
 RUN mkdir /fbgp && mkdir /etc/fbgp && mkdir /var/log/fbgp
 COPY . /fbgp
 RUN pip3 install --upgrade pip
-RUN cd /fbgp/faucet && PBR_VERSION=1.8.33 python3 setup.py install
+RUN cd /fbgp/faucet && pip3 install -r requirements.txt && PBR_VERSION=1.8.33 python3 setup.py install
 RUN cd /fbgp && python3 setup.py install
 WORKDIR /
 

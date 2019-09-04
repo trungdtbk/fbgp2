@@ -6,13 +6,13 @@ COPY . /fbgp
 RUN pip3 install --upgrade pip
 RUN cd /fbgp/faucet && PBR_VERSION=1.8.33 python3 setup.py install
 RUN cd /fbgp && python3 setup.py install
-WORKDIR /fbgp
+WORKDIR /
 
 #ADD tests/faucet.yaml /etc/fbgp
 #ADD tests/fbgp.yaml /etc/fbgp
 VOLUME [ "/etc/fbgp", "/var/log/fbgp" ]
 
-ENV PYTHONPATH=/fbgp:/fbgp/faucet FAUCET_CONFIG=/etc/fbgp/faucet.yaml
+ENV FAUCET_CONFIG=/etc/fbgp/faucet.yaml
 ENV FAUCET_LOG=/var/log/fbgp/faucet.log
 ENV FAUCET_EXCEPTION_LOG=/var/log/fbgp/faucet_exception.log
 ENV FAUCET_EVENT_SOCK=/var/log/fbgp/faucet.sock

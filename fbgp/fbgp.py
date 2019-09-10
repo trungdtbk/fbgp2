@@ -171,7 +171,7 @@ class FlowBasedBGP(app_manager.RyuApp):
     def _update_fib(self, prefix, nexthop, dpid=None, vid=None, pathid=None, add=True):
         if add:
             self.faucet_api.add_route(prefix, nexthop, dpid=dpid, vid=vid, pathid=pathid)
-            self.logger.info(
+            self.logger.debug(
                 'Added extended FIB rule to datapath: prefix=%s, nexthop=%s, pathid=%s, dpid=%s, vid=%s' % (
                     str(prefix), str(nexthop), pathid, dpid, vid))
 
@@ -198,7 +198,7 @@ class FlowBasedBGP(app_manager.RyuApp):
         else:
             new_best = self.bgp.add_route(route)
         if new_best:
-            self.logger.info('best path has changed: %s' % new_best)
+            self.logger.info('new best path for %s: %s' % (route.prefix, new_best))
             self._update_fib(new_best.prefix, new_best.nexthop, peer.dp_id, peer.vlan_vid)
 
         for other_peer in self._other_peers(peer):
@@ -221,9 +221,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                     self._update_fib(
                         route.prefix, route.nexthop, peer.dp_id, peer.vlan_vid, pathid)
             elif new_best:
-                self.logger.debug('checking if route %s can be announced to peer: %s' % (new_best, other_peer.peer_ip))
                 msgs.extend(self.bgp.announce(other_peer, new_best))
-                self.logger.info('advertising path %s to peer: %s' % (new_best, other_peer.peer_ip))
         return msgs
 
     def register(self):
@@ -453,7 +451,7 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _process_bgp_update(self, peer_ip, update):
         """Process a BGP update received from ExaBGP."""
-        self.logger.info('processing update from %s: %s' % (peer_ip, update))
+        self.logger.debug('processing update from %s: %s' % (peer_ip, update))
         try:
             msgs = []
             if peer_ip not in self.peers:
@@ -516,6 +514,7 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _process_server_msg(self, msg):
         """Process message received from Route Controller."""
+        self.logger.debug('Process msg from server: %s' % msg)
         msgs = []
         msg_type = msg['msg_type']
         msg = msg['msg']
@@ -566,5 +565,4 @@ class FlowBasedBGP(app_manager.RyuApp):
             for msg in msgs:
                 self._send_to_exabgp(msg)
         except Exception as e:
-            print(e, msg)
-            traceback.print_exc()
+            self.logger.error('Error when handling %s: %s' % (msg, e))

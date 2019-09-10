@@ -41,8 +41,8 @@ class FaucetConnect():
                     if data:
                         data = data.decode('utf-8')
                         self._process_faucet_event(data.strip())
-                except:
-                    traceback.print_exc()
+                except Exception as e:
+                    self.logger.error('Lost connection to Faucet event: %s' % e)
                     break
             self.socket.close()
 
@@ -54,7 +54,7 @@ class FaucetConnect():
                 return
             if 'L2_LEARN' in event or 'L2_EXPIRE' in event:
                 self.handler(event)
-        except:
-            traceback.print_exc()
+        except Exception as e:
+            self.logger.error('Error when handling %s: %s' % (event, e))
 
 

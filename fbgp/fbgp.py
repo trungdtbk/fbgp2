@@ -460,8 +460,10 @@ class FlowBasedBGP(app_manager.RyuApp):
             if 'announce' in update and 'ipv4 unicast' in update['announce']:
                 attributes = update['attribute']
                 if 'as-path' not in attributes:
-                    self.logger.error('received malformed update')
-                    return []
+                    if peer.local_as != peer.peer_as:
+                        self.logger.error('received malformed update')
+                        return []
+                    attributes['as-path'] = [peer.peer_as]
                 elif peer.local_as in attributes['as-path']: # loop avoidance
                     return []
                 for name, attr in [

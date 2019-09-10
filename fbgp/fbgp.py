@@ -484,8 +484,9 @@ class FlowBasedBGP(app_manager.RyuApp):
                 for prefix in update['withdraw']['ipv4 unicast']:
                     prefix = ipaddress.ip_network(prefix['nlri'])
                     route = peer.rcv_withdraw(prefix)
-                    self._notify_route_change(peer_ip, route, True)
-                    msgs.extend(self.path_change_handler(peer, route, True))
+                    if route:
+                        self._notify_route_change(peer_ip, route, True)
+                        msgs.extend(self.path_change_handler(peer, route, True))
             return msgs
         except Exception as e:
             self.logger.error('Error when processing update %s: %s' % (update, e))

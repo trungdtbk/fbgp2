@@ -114,6 +114,10 @@ class BgpPeer:
         self._candidate_routes = {} #possible routes for the peer
         self.state = 'down'
         self.is_connected = False
+        self.ibgp = self.local_as == self.peer_as
+
+    def is_ibgp(self):
+        return self.ibgp
 
     def bgp_session_up(self):
         """BGP session with the peer is up."""

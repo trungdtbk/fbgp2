@@ -249,7 +249,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 self._send_to_server(msg)
             for route in peer.routes():
                 self._notify_route_change(peer.peer_ip, route)
-        for border in self.border.values():
+        for border in self.borders.values():
             if border.connected and border.dp_id and border.vlan_vid and border.port_no:
                 attrs = {'dp': border.dp_id, 'vlan': border.vlan_vid, 'port': border.port_no}
                 src = str(self.routerid)

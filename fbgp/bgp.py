@@ -21,7 +21,8 @@ class Route:
         self.med = attributes.get('med') or 0
         self.origin = attributes.get('origin') or 'incomplete'
         self.community = attributes.get('community')
-        self.learned_from_peer = peerip
+        self.learned_from_peer = attributes.get('peerip')
+        self.internal = attributes.get('internal', False)
 
     def to_exabgp(self, peer=None, is_withdraw=False, gw=None):
         line = ''
@@ -57,9 +58,10 @@ class Route:
 
     def __str__(self):
         return "<Route %s->%s (local-pref=%s, as-path=%s, " \
-                "med=%s, origin=%s, community=%s>" % (
+                "med=%s, origin=%s, community=%s, from_peer=%s>" % (
                     self.prefix, self.nexthop, self.local_pref,
-                    self.as_path, self.med, self.origin, self.community)
+                    self.as_path, self.med, self.origin, self.community,
+                    self.learned_from_peer)
     __repr__ = __str__
 
 

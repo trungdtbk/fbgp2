@@ -58,7 +58,7 @@ neighbor %s {
         self.conn = None
         self.exabgp = None
         self.running = False
-        self.recv_queue = eventlet.Queue(128)
+        self.recv_queue = eventlet.Queue(256)
         self.lock = Lock()
 
     def _clean(self):

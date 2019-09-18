@@ -292,5 +292,5 @@ class BgpRouter():
         msgs = []
         route = peer.withdraw(route)
         if route:
-            msgs.extend(route.to_exabgp(peer, is_withdraw=True))
+            msgs.append(route.to_exabgp(peer, is_withdraw=True))
         return msgs

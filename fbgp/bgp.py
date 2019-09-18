@@ -21,7 +21,7 @@ class Route:
         self.med = attributes.get('med') or 0
         self.origin = attributes.get('origin') or 'incomplete'
         self.community = attributes.get('community')
-        self.learned_from_peer = attributes.get('peerip')
+        self.learned_from_peer = peerip
         self.internal = attributes.get('internal', False)
 
     def to_exabgp(self, peer=None, is_withdraw=False, gw=None):

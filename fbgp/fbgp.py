@@ -193,6 +193,8 @@ class FlowBasedBGP(app_manager.RyuApp):
     def path_change_handler(self, peer, route, withdraw=False):
         """handle route advertisement or withdrawal event."""
         msgs = []
+        if not route:
+            return []
         if withdraw:
             new_best = self.bgp.del_route(route)
         else:
@@ -306,6 +308,8 @@ class FlowBasedBGP(app_manager.RyuApp):
 
     def _notify_route_change(self, peer_ip, route, withdraw=False):
         """notify the route server about a route."""
+        if not route:
+            return
         msg_type = 'route_down' if withdraw else 'route_up'
         msg = {
                 'msg_type': msg_type, 'peer_ip': str(peer_ip), 'next_hop': str(route.nexthop),
@@ -560,7 +564,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                             msgs = self._del_mapping(routerid, prefix, nexthop, egress, pathid)
                     else:
                         best_route = self.bgp.best_routes.get(prefix)
-                        if best_route.nexthop == nexthop:
+                        if best_route and best_route.nexthop == nexthop:
                             return
                         route = self._route_by_nexthop(prefix, nexthop)
                         if not route:

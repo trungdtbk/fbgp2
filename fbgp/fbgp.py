@@ -484,6 +484,9 @@ class FlowBasedBGP(app_manager.RyuApp):
                         ('med', 'med'), ('community', 'communities'),
                         ('local_pref', 'local-preference')]:
                     attributes[name] = update['attribute'].get(attr)
+
+                attributes['internal'] = peer.local_as == peer.peer_as
+
                 for nexthop, nlris in update['announce']['ipv4 unicast'].items():
                     nexthop = ipaddress.ip_address(nexthop)
                     if nexthop == peer.local_ip:

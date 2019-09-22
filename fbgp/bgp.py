@@ -231,9 +231,11 @@ class BgpRouter():
                 if op(val2, val1):
                     return route2
 
-            if route1 is not None:
+            if not route1.internal:
                 return route1
-            return route2
+            if not route2.internal:
+                return route2
+            return route1
 
         best_route = None
         for route in routes:

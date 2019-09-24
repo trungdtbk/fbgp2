@@ -18,4 +18,3 @@ install:
 script:
     - "python3 -m pytest --cov=. tests/"
     - "py.test --pylint ./fbgp/ --pylint-error-types=E"
-    - "py.test --pylint ./tests/ --pylint-error-types=E"

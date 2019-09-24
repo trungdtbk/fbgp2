@@ -167,11 +167,15 @@ class BgpPeer:
 
     def announce(self, route):
         """Announce a route to this peer."""
+        # if the peer is internal, announce all external routes but no internal ones
+        # if the peer is external, announce all routes if the peer not in the as path
         if route is None:
             return
-        if route.prefix in self._rib_in and self.peer_as in route.as_path[:1]:
-            return
-        out = self.export_policy.evaluate(route.copy())
+        if ((self.ibgp and not route.internal) or
+                (not self.ibgp and self.peer_as not in route.as_path[:1])):
+            out = self.export_policy.evaluate(route.copy())
+        else:
+            out = None
         if out:
             if self.local_as != self.peer_as:
                 out.as_path = [self.local_as] + out.as_path

@@ -258,7 +258,7 @@ class BgpRouter():
             new_best = self._select_best_route(routes)
             if new_best:
                 self.best_routes[new_best.prefix] = new_best
-        return new_best
+        return new_best, best_route
 
     def add_route(self, new_route):
         if new_route is None:
@@ -273,7 +273,7 @@ class BgpRouter():
             new_best_route = self._select_best_route([best_route, new_route])
         if new_best_route and new_best_route != best_route:
             self.best_routes[prefix] = new_best_route
-            return new_best_route
+            return new_best_route, best_route
         return
 
     @staticmethod

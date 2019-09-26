@@ -42,10 +42,6 @@ neighbor %s {
             parsed;
             update;
         }
-        send {
-            parsed;
-            update;
-        }
     }
 }
     """

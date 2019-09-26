@@ -40,12 +40,12 @@ class TestBGP(unittest.TestCase):
         for i, prefix in enumerate(['1.0.0.0/20', '120.0.0.0/20']):
             as_path = as_path[: len(as_path) - i]
             recv_route = self.peer.rcv_announce(prefix, '10.0.1.1', as_path=as_path)
-            best_route = self.bgp.add_route(recv_route)
+            best_route, _ = self.bgp.add_route(recv_route)
             self.assertEqual(recv_route.as_path, best_route.as_path)
 
         recv_route2 = self.peer.rcv_announce('1.0.0.0/20', '10.0.2.2', as_path=[1,2,3,4])
         # this should make no best path change
-        best_route = self.bgp.add_route(recv_route2)
+        best_route, _ = self.bgp.add_route(recv_route2)
         self.assertTrue(best_route is None)
         self.assertEqual(len(self.bgp.best_routes), 2)
         self.assertEqual(len(self.bgp.loc_rib['1.0.0.0/20']), 2)

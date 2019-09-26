@@ -247,9 +247,9 @@ class BgpRouter():
         return best_route
 
     def del_route(self, route):
-        best_route = self.best_routes.get(route.prefix, None)
         if not route:
-            return None, best_route
+            return None, None
+        best_route = self.best_routes.get(route.prefix, None)
         routes = self.loc_rib[route.prefix]
         routes.discard(route)
         new_best = None
@@ -261,10 +261,10 @@ class BgpRouter():
         return new_best, best_route
 
     def add_route(self, new_route):
-        best_route = self.best_routes.get(prefix)
         if new_route is None:
-            return None, best_route
+            return None, None
         prefix = new_route.prefix
+        best_route = self.best_routes.get(prefix)
         self.loc_rib[prefix].discard(new_route)
         self.loc_rib[prefix].add(new_route)
         if new_route == best_route: # imply a withdrawal of the current best

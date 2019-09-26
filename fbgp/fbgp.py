@@ -196,14 +196,15 @@ class FlowBasedBGP(app_manager.RyuApp):
         if not route:
             return []
         if withdraw:
-            new_best = self.bgp.del_route(route)
+            new_best, cur_best = self.bgp.del_route(route)
         else:
-            new_best = self.bgp.add_route(route)
+            new_best, cur_best = self.bgp.add_route(route)
         if new_best:
             nexthop = new_best.nexthop
             if peer.is_ibgp() and nexthop in self.borders:
                 nexthop = self.borders[nexthop].nexthop
             self.logger.info('new best path for %s via %s: %s' % (route.prefix, nexthop, new_best))
+            self.logger.debug('previous best path for %s was %s' % (route.prefix, cur_best))
             self._update_fib(new_best.prefix, nexthop, peer.dp_id, peer.vlan_vid)
 
         for other_peer in self._other_peers(peer):

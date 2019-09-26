@@ -247,11 +247,11 @@ class BgpRouter():
         return best_route
 
     def del_route(self, route):
+        best_route = self.best_routes.get(route.prefix, None)
         if not route:
-            return None
+            return None, best_route
         routes = self.loc_rib[route.prefix]
         routes.discard(route)
-        best_route = self.best_routes.get(route.prefix, None)
         new_best = None
         if route == best_route:
             del self.best_routes[route.prefix]
@@ -261,12 +261,12 @@ class BgpRouter():
         return new_best, best_route
 
     def add_route(self, new_route):
+        best_route = self.best_routes.get(prefix)
         if new_route is None:
-            return
+            return None, best_route
         prefix = new_route.prefix
         self.loc_rib[prefix].discard(new_route)
         self.loc_rib[prefix].add(new_route)
-        best_route = self.best_routes.get(prefix)
         if new_route == best_route: # imply a withdrawal of the current best
             new_best_route = self._select_best_route(self.loc_rib[prefix])
         else:
@@ -274,7 +274,7 @@ class BgpRouter():
         if new_best_route and new_best_route != best_route:
             self.best_routes[prefix] = new_best_route
             return new_best_route, best_route
-        return
+        return None, best_route
 
     @staticmethod
     def announce_prefix(peer, prefix):

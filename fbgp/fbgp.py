@@ -226,16 +226,13 @@ class FlowBasedBGP(app_manager.RyuApp):
                         gateway, pathid, other_peer.dp_id, other_peer.vlan_vid)
                     self._update_fib(
                         route.prefix, route.nexthop, peer.dp_id, peer.vlan_vid, pathid)
-            elif withdraw: # announce the new best route if any otherwise withdraw the current best route if any
-                if new_best:
-                    msgs.extend(self.bgp.announce(other_peer, new_best))
-                elif cur_best:
-                    msgs.extend(self.bgp.withdraw(other_peer, cur_best))
-            elif new_best: # announce new best route if any
+            elif new_best and new_best != cur_best:
                 if other_peer.is_ibgp():
                     msgs.extend(self.bgp.announce(other_peer, new_best, self.routerid))
                 else:
                     msgs.extend(self.bgp.announce(other_peer, new_best))
+            elif not new_best and cur_best:
+                msgs.extend(self.bgp.withdraw(other_peer, cur_best))
         return msgs
 
     def register(self):

@@ -78,7 +78,7 @@ class FlowBasedBGP(app_manager.RyuApp):
                 peer = BgpPeer(peer_ip=peer_ip,
                                peer_as=peer_conf['peer_as'],
                                local_ip=local_ip,
-                               local_as=peer_conf.get('local_as', None),
+                               local_as=peer_conf['local_as'],
                                peer_port=peer_conf.get('peer_port', 179))
                 for vlan in self.vlans.values():
                     if vlan.ip_in_vip_subnet(peer_ip):
@@ -275,6 +275,7 @@ class FlowBasedBGP(app_manager.RyuApp):
             peer = self.peers[peer_ip]
             self.path_mapping[prefix, nexthop].add(peer)
             vip = self._get_vip(nexthop, peer.vlan)
+
             if not vip:
                 return []
             mypathid = self._get_pathid(nexthop)
@@ -484,8 +485,6 @@ class FlowBasedBGP(app_manager.RyuApp):
                         ('med', 'med'), ('community', 'communities'),
                         ('local_pref', 'local-preference')]:
                     attributes[name] = update['attribute'].get(attr)
-
-                attributes['internal'] = peer.local_as == peer.peer_as
 
                 for nexthop, nlris in update['announce']['ipv4 unicast'].items():
                     nexthop = ipaddress.ip_address(nexthop)

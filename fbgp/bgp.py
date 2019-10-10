@@ -9,20 +9,28 @@ import operator
 import collections
 import traceback
 
+ORIGIN_IGP = 0
+ORIGIN_EGP = 1
+ORIGIN_INCOMPLETE = 2
 
 class Route:
     """Represent a BGP route to a prefix."""
 
-    def __init__(self, peerip, prefix, nexthop, **attributes):
+    def __init__(self, prefix, nexthop, as_path, origin, **others):
         self.prefix = prefix
         self.nexthop = nexthop
-        self.local_pref = attributes.get('local_pref') or 100
-        self.as_path = attributes.get('as_path') or []
-        self.med = attributes.get('med') or 0
-        self.origin = attributes.get('origin') or 'incomplete'
-        self.community = attributes.get('community')
-        self.learned_from_peer = peerip
-        self.internal = attributes.get('internal', False)
+        self.as_path = as_path
+        self.origin = origin
+        self.local_pref = others.get('local_pref') or 100
+        self.med = others.get('med') or 0
+        self.community = others.get('community')
+
+        self.local = others.get('local', False) # locally originated
+
+        self.from_as = others.get('from_as')
+        self.from_peer = others.get('from_peer')
+        self.from_ibgp = others.get('from_ibgp', False)
+
 
     def to_exabgp(self, peer=None, is_withdraw=False, gw=None):
         line = ''
@@ -43,9 +51,11 @@ class Route:
 
     def copy(self):
         """return a copy of this route."""
-        return self.__class__(self.learned_from_peer, self.prefix, self.nexthop, local_pref=self.local_pref,
-                              as_path=self.as_path, med=self.med, origin=self.origin,
-                              community=self.community)
+        return self.__class__(self.prefix, self.nexthop, self.as_path, self.origin,
+                              local_pref=self.local_pref, med=self.med,
+                              community=self.community, local=self.local,
+                              from_as=self.from_as, from_peer=self.from_peer,
+                              from_ibgp=self.from_ibgp)
 
     def __hash__(self):
         return hash(frozenset([str(v) for v in self.__dict__.values()]))
@@ -58,10 +68,11 @@ class Route:
 
     def __str__(self):
         return "<Route %s->%s (local-pref=%s, as-path=%s, " \
-                "med=%s, origin=%s, community=%s, from_peer=%s>" % (
+                "med=%s, origin=%s, community=%s, from_peer=%s>" \
+                "from_as=%s, from_ibgp=%s, local=%s>" % (
                     self.prefix, self.nexthop, self.local_pref,
                     self.as_path, self.med, self.origin, self.community,
-                    self.learned_from_peer)
+                    self.from_peer, self.from_as, self.from_ibgp, self.local)
     __repr__ = __str__
 
 
@@ -150,9 +161,15 @@ class BgpPeer:
             return self._rib_in.pop(prefix)
         return
 
-    def rcv_announce(self, prefix, nexthop, **attributes):
+    def rcv_announce(self, prefix, nexthop, as_path, origin, **others):
         """Process a route announced by this peer."""
-        route = Route(self.peer_ip, prefix, nexthop, **attributes)
+        attributes = dict(
+            from_as=self.peer_as,
+            from_peer=self.peer_ip,
+            from_ibgp=self.ibgp
+        )
+        attributes.update(others)
+        route = Route(prefix, nexthop, as_path, origin, **attributes)
         if prefix in self._rib_in and self._rib_in[prefix] == route:
             return
         self._rib_in[prefix] = route
@@ -171,7 +188,7 @@ class BgpPeer:
         # if the peer is external, announce all routes if the peer not in the as path
         if route is None:
             return
-        if ((self.ibgp and not route.internal) or
+        if ((self.ibgp and not route.from_ibgp) or
                 (not self.ibgp and self.peer_as not in route.as_path[:1])):
             out = self.export_policy.evaluate(route.copy())
         else:
@@ -223,8 +240,16 @@ class BgpRouter():
             if route2 is None:
                 return route1
 
-            for attr, op in [('local_pref', operator.gt), ('as_path', operator.lt),
-                             ('med', operator.gt)]:
+            for attr, op in [('local_pref', operator.gt),
+                             ('local', operator.gt),
+                             ('as_path', operator.lt),
+                             ('origin', operator.lt),
+                             ('med', operator.gt),
+                             ('from_ibgp', operator.lt),
+                             ('from_peer', operator.lt)]:
+                if attr == 'med' and route1.from_as != route2.from_as:
+                    # do not compare med from two different ases
+                    continue
                 val1 = getattr(route1, attr)
                 val2 = getattr(route2, attr)
                 if isinstance(val1, list) and isinstance(val2, list):
@@ -247,36 +272,36 @@ class BgpRouter():
         return best_route
 
     def del_route(self, route):
-        if not route:
-            return None, None
-        best_route = self.best_routes.get(route.prefix, None)
-        routes = self.loc_rib[route.prefix]
+        prefix = route.prefix
+
+        best_route = self.best_routes.get(prefix)
+        routes = self.loc_rib[prefix]
         routes.discard(route)
-        new_best = best_route
-        if route == best_route:
-            del self.best_routes[route.prefix]
-            new_best = self._select_best_route(routes)
-            if new_best:
-                self.best_routes[new_best.prefix] = new_best
+
+        new_best = self._select_best_route(routes)
+        if new_best:
+            self.best_routes[prefix] = new_best
+        else:
+            del self.best_routes[prefix]
+
+        if len(self.loc_rib[prefix]) == 0:
+            del self.loc_rib[prefix]
+
         return new_best, best_route
 
-    def add_route(self, new_route):
-        assert new_route
-        prefix = new_route.prefix
+    def add_route(self, route):
+        prefix = route.prefix
+        self.loc_rib[prefix].add(route)
+
         best_route = self.best_routes.get(prefix)
-        new_best = best_route
-        self.loc_rib[prefix].add(new_route)
-        if new_route != best_route:
-            new_best = self._select_best_route([best_route, new_route])
+        new_best = self._select_best_route([best_route, route])
+
         if new_best and new_best != best_route:
             self.best_routes[prefix] = new_best
-        return new_best, best_route
+        else:
+            new_best = None
 
-    @staticmethod
-    def announce_prefix(peer, prefix):
-        msgs = []
-        route = Route(peerip=None, prefix=ipaddress.ip_network(prefix), nexthop=None)
-        return BgpRouter.announce(peer, route)
+        return new_best, best_route
 
     @staticmethod
     def announce(peer, route, gateway=None):

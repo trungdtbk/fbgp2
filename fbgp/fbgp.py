@@ -350,9 +350,9 @@ class FlowBasedBGP(app_manager.RyuApp):
         msgs = []
         peer.bgp_session_up()
         # advertise local subnets
-        prefixes = set([str(p.faucet_vip.network) for p in self.peers.values() if p.faucet_vip])
-        for prefix in prefixes:
-            msgs.extend(self.bgp.announce_prefix(peer, prefix))
+        #prefixes = set([str(p.faucet_vip.network) for p in self.peers.values() if p.faucet_vip])
+        #for prefix in prefixes:
+        #    msgs.extend(self.bgp.announce_prefix(peer, prefix))
         # for each prefix, advertise non-best path if it is configured, otherwise advertise best path
         for prefix, routes in self.bgp.loc_rib.items():
             gateway = None

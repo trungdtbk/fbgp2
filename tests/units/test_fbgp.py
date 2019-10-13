@@ -42,18 +42,19 @@ class TestFlowBasedBGP(unittest.TestCase):
 routerid: 10.1.1.1
 
 peers:
-- peer_ip: 10.0.0.1
+- peer_ip: 10.0.10.1
   peer_as: 1
   local_as: 65000
-- peer_ip: 10.0.0.2
+- peer_ip: 10.0.20.2
   peer_as: 2
   local_as: 65000
-- peer_ip: 10.0.0.2
+- peer_ip: 10.0.30.1
   peer_as: 2
   local_as: 65000
-- peer_ip: 10.0.0.2
+- peer_ip: 10.0.100.253
   peer_as: 65000
   local_as: 65000
+  local_ip: 10.0.100.1
 
 borders:
 - routerid: 10.2.2.2
@@ -73,6 +74,9 @@ vlans:
     vlan30:
         vid: 30
         faucet_vips: ['10.0.30.254/24']
+    vlan100:
+        vid: 100
+        faucet_vips: ['10.0.100.254/24']
 dps:
     s1:
         dp_id: 1
@@ -83,7 +87,7 @@ dps:
             2:
                 native_vlan: vlan10
             3:
-                native_vlan: vlan10
+                native_vlan: vlan100
     s2:
         dp_id: 2
         hardware: 'Open vSwitch'
@@ -102,14 +106,6 @@ dps:
     local_ip = '10.0.0.253'
     local_as = 65000
 
-    def start_controller(self):
-        self.proc = subprocess.Popen(['ryu-manager', 'faucet.faucet', 'fbgp.fbgp'], stderr=subprocess.PIPE)
-        self.success = True
-        try:
-            (stdout, stderr) = self.proc.communicate(timeout=5)
-            self.success = False
-        except:
-            self.assertFalse(self.proc.poll())
 
     @classmethod
     def setUpClass(cls):
@@ -205,36 +201,41 @@ dps:
         self.assertTrue(peer.state=='down')
         self.assertTrue(len(peer._rib_in) == 0 and len(peer._rib_out) == 0)
 
-    def peer_announce(self, peer, prefix):
-        msg = self.generate_update_msg(peer.peer_ip, peer.peer_as, prefix)
+    def peer_announce(self, peer, prefix, **kwargs):
+        msg = self.generate_update_msg(peer.peer_ip, peer.peer_as, prefix, True, **kwargs)
         self.fbgp._process_exabgp_msg(msg)
 
     def peer_withdraw(self, peer, prefix):
         msg = self.generate_update_msg(peer.peer_ip, peer.peer_as, prefix, False)
         self.fbgp._process_exabgp_msg(msg)
 
-    def verify_prefix_in_loc_rib(self, prefix):
+    def verify_route_attributes(self, route, **kwargs):
+        for attr, value in kwargs.items():
+            self.assertTrue(getattr(route, attr) == value)
+
+    def verify_prefix_in_loc_rib(self, prefix, **kwargs):
         prefix = ipaddress.ip_network(prefix)
         self.assertTrue(prefix in self.fbgp.bgp.loc_rib)
 
-    def verify_prefix_in_rib_out(self, peer, prefix):
+    def verify_prefix_in_rib_out(self, peer, prefix, **kwargs):
         prefix = ipaddress.ip_network(prefix)
         self.assertTrue(prefix in peer._rib_out)
+        self.verify_route_attributes(peer._rib_out[prefix], **kwargs)
 
-    def verify_best_route(self, prefix):
+    def verify_best_route(self, prefix, **kwargs):
         prefix = ipaddress.ip_network(prefix)
         self.assertTrue(prefix in self.fbgp.bgp.best_routes)
+        self.verify_route_attributes(self.fbgp.bgp.best_routes[prefix], **kwargs)
 
-    def announce_and_verify(self):
-        prefix = '1.0.0.0/24'
+    def announce_and_verify(self, prefix='1.0.0.0/24', **kwargs):
         first_peer = self.peers[0]
-        self.peer_announce(first_peer, prefix)
-        self.verify_prefix_in_loc_rib(prefix)
+        self.peer_announce(first_peer, prefix, **kwargs)
+        self.verify_prefix_in_loc_rib(prefix, **kwargs)
         self.verify_best_route(prefix)
+        time.sleep(0.2)
         for peer in self.peers[1:]:
             self.assertEqual(len(peer._rib_in), 0)
-            self.assertEqual(len(peer._rib_out), 1)
-
+            self.verify_prefix_in_rib_out(peer, prefix)
         self.assertTrue(self.fbgp.exabgp_connect.send.call_count==(len(self.fbgp.peers) -1))
 
     def test_rcv_exabgp_update(self):
@@ -257,3 +258,25 @@ dps:
             getattr(self, func)(peer)
             self.assertEqual(len(peer._rib_in), 0)
             self.assertEqual(len(peer._rib_out), l)
+
+    def test_recv_inferior_update_msg(self):
+        """Test receiving an inferior route."""
+        self.announce_and_verify()
+        peer = self.peers[1]
+        self.peer_announce(peer, '1.0.0.0/24', as_path=[2,2])
+        self.verify_best_route('1.0.0.0/24', as_path=[1])
+        self.verify_prefix_in_rib_out(self.peers[2], '1.0.0.0/24')
+
+    def test_recv_superior_update_msg(self):
+        """Test receiving a superior route."""
+        prefix = '1.0.0.0/24'
+        self.announce_and_verify(prefix, as_path=[1,1,1])
+        self.peer_announce(self.peers[1], prefix, as_path=[2])
+        self.verify_best_route(prefix, as_path=[2])
+        for peer in self.peers[:1] + self.peers[3:]:
+            if peer.is_ibgp():
+                as_path = [2]
+            else:
+                as_path = [65000, 2]
+            self.verify_prefix_in_rib_out(peer, prefix, as_path=as_path)
+

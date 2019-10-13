@@ -204,8 +204,11 @@ class FlowBasedBGP(app_manager.RyuApp):
                 if other_peer.is_ibgp():
                     msgs.extend(self.bgp.announce(other_peer, new_best, self.routerid))
                 else:
-                    msgs.extend(self.bgp.announce(other_peer, new_best))
-            elif not new_best and cur_best:
+                    if new_best.as_path[0] == other_peer.peer_as and cur_best:
+                        msgs.extend(self.bgp.withdraw(other_peer, cur_best))
+                    else:
+                        msgs.extend(self.bgp.announce(other_peer, new_best))
+            elif not new_best and cur_best and withdraw:
                 msgs.extend(self.bgp.withdraw(other_peer, cur_best))
         return msgs
 

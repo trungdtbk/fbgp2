@@ -232,14 +232,28 @@ dps:
         self.peer_announce(first_peer, prefix, **kwargs)
         self.verify_prefix_in_loc_rib(prefix, **kwargs)
         self.verify_best_route(prefix)
-        time.sleep(0.2)
         for peer in self.peers[1:]:
             self.assertEqual(len(peer._rib_in), 0)
             self.verify_prefix_in_rib_out(peer, prefix)
-        self.assertTrue(self.fbgp.exabgp_connect.send.call_count==(len(self.fbgp.peers) -1))
+        self.assertTrue(self.fbgp.exabgp_connect.send.call_count==(len(self.fbgp.peers) -1),
+                        self.fbgp.exabgp_connect.send.call_count)
+
+    def withdraw_and_verify(self, prefix='1.0.0.0/24'):
+        first_peer = self.peers[0]
+        self.peer_withdraw(first_peer, prefix)
+        self.assertFalse(prefix in self.fbgp.bgp.loc_rib)
+        self.assertFalse(prefix in self.fbgp.bgp.best_routes)
+        for peer in self.peers:
+            self.assertEqual(len(peer._rib_in), 0)
+            self.assertFalse(prefix in peer._rib_out)
+        self.assertTrue(self.fbgp.exabgp_connect.send.call_count==(len(self.fbgp.peers) -1),
+                        self.fbgp.exabgp_connect.send.call_count)
 
     def test_rcv_exabgp_update(self):
         self.announce_and_verify()
+        for test in [self.withdraw_and_verify, self.announce_and_verify]:
+            self.reset_mocker()
+            test()
 
     def test_peer_go_down(self):
         """Test when the peer gives us the best route goes down."""
@@ -279,4 +293,3 @@ dps:
             else:
                 as_path = [65000, 2]
             self.verify_prefix_in_rib_out(peer, prefix, as_path=as_path)
-

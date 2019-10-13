@@ -102,13 +102,12 @@ class FlowBasedBGP(app_manager.RyuApp):
         if not self.valves:
             self.logger.error('Exitting...failed to get info from Faucet (Faucet probably has failed)')
             self.stop()
-        eventlet.spawn(self._msg_processor)
         self._load_config()
         for name, connector_cls, kwargs in [
-                ('faucet_connect', FaucetConnect, {'handler': self._rcv_faucet_msg}),
-                ('exabgp_connect', ExaBgpConnect, {'handler': self._rcv_exabgp_msg,
+                ('faucet_connect', FaucetConnect, {'handler': self._process_faucet_msg}),
+                ('exabgp_connect', ExaBgpConnect, {'handler': self._process_exabgp_msg,
                                                    'peers': self.peers, 'routerid': self.routerid}),
-                ('server_connect', ServerConnect, {'handler': self._rcv_server_msg})]:
+                ('server_connect', ServerConnect, {'handler': self._process_server_msg})]:
             connector = connector_cls(**kwargs)
             setattr(self, name, connector)
             self.logger.info('Created connector: %s' % name)
@@ -120,31 +119,6 @@ class FlowBasedBGP(app_manager.RyuApp):
             else:
                 self.logger.info('Connector %s failed to start' % name)
                 self.stop()
-
-    def _rcv_exabgp_msg(self, msg):
-        if msg in ['done', 'error'] or not msg:
-            return
-        self.rcv_msg_q.put(('exabgp', msg))
-
-    def _rcv_faucet_msg(self, msg):
-        self.rcv_msg_q.put(('faucet', msg))
-
-    def _rcv_server_msg(self, msg):
-        self.rcv_msg_q.put(('server', msg))
-
-    def _msg_processor(self):
-        self.logger.info('Started message processor')
-        while True:
-            try:
-                (source, msg) = self.rcv_msg_q.get()
-                if source == 'exabgp':
-                    self._process_exabgp_msg(msg)
-                elif source == 'faucet':
-                    self._process_faucet_msg(msg)
-                elif source == 'server':
-                    self._process_server_msg(msg)
-            except Exception as e:
-                self.logger.error('Error when processing msg: %s from %s: %s' % (msg, source, e))
 
     def _get_pathid(self, nexthop):
         """Return a unique pathid for a nexthop."""

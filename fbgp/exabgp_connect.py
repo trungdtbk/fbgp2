@@ -55,6 +55,7 @@ neighbor %s {
         self.exabgp = None
         self.running = False
         self.recv_queue = eventlet.Queue(256)
+        self.send_queue = eventlet.Queue(256)
 
     def _clean(self):
         pass
@@ -85,6 +86,16 @@ neighbor %s {
                 self.logger.error('Error %s when handling %s' % (e, msg))
                 pass
 
+    def _send(self):
+        while self.running:
+            try:
+                if self.conn:
+                    msg = self.send_queue.get()
+                    self.conn.send(msg)
+                    self.logger.debug('sent msg <%s> to ExaBGP' % msg)
+            except:
+                self.logger.error('error sending msg [%s] to ExaBGP' % msg)
+
     def start(self):
         self.logger.info('starting ExaBGP...')
         self.running = True
@@ -93,6 +104,7 @@ neighbor %s {
         self.exabgp_hook_log = os.environ.get('FBGP_EXABGP_HOOK_LOG', '/var/log/fbgp/exabgp_hook.log')
         log_level = os.environ.get('FBGP_LOG_LEVEL', 'INFO').upper()
         eventlet.spawn(self._process_msg)
+        eventlet.spawn(self._send)
         eventlet.spawn(self._run)
         time.sleep(5) # wait for the listener to start
         self.logger.info('ExaBGP listener started')
@@ -132,6 +144,4 @@ neighbor %s {
         self._clean()
 
     def send(self, msg):
-        if self.conn:
-            self.conn.send(msg)
-            self.logger.debug('sent msg <%s> to ExaBGP' % msg)
+        self.send_queue.put(msg)

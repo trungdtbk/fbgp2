@@ -55,7 +55,6 @@ neighbor %s {
         self.exabgp = None
         self.running = False
         self.recv_queue = eventlet.Queue(256)
-        self.lock = Lock()
 
     def _clean(self):
         pass
@@ -80,13 +79,11 @@ neighbor %s {
     def _process_msg(self):
         while self.running:
             msg = self.recv_queue.get()
-            self.lock.acquire()
             try:
                 self.handler(msg)
             except Exception as e:
                 self.logger.error('Error %s when handling %s' % (e, msg))
                 pass
-            self.lock.release()
 
     def start(self):
         self.logger.info('starting ExaBGP...')

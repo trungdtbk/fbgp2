@@ -34,12 +34,12 @@ class Route:
 
     def to_exabgp(self, peer=None, is_withdraw=False, gw=None):
         line = ''
-        gateway = gw or peer.faucet_vip.ip
         if peer:
             line = 'neighbor %s' % peer.peer_ip
         if is_withdraw:
             line += ' withdraw route %s' % self.prefix
         else:
+            gateway = gw or peer.faucet_vip.ip
             line += ' announce route %s next-hop %s as-path %s' % (
                 self.prefix, gateway, self.as_path)
         for name, attr in [

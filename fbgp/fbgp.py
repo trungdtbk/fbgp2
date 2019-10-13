@@ -182,6 +182,8 @@ class FlowBasedBGP(app_manager.RyuApp):
             self._update_fib(new_best.prefix, nexthop, peer.dp_id, peer.vlan_vid)
 
         for other_peer in self._other_peers(peer):
+            if other_peer.state == 'down':
+                continue
             if other_peer in self.path_mapping[route.prefix, route.nexthop]:
                 gateway = self._get_vip(route.nexthop, other_peer.vlan)
                 pathid = self._get_pathid(route.nexthop)

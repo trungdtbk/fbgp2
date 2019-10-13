@@ -42,13 +42,16 @@ class TestFlowBasedBGP(unittest.TestCase):
 routerid: 10.1.1.1
 
 peers:
-- peer_ip: 10.0.10.1
+- peer_ip: 10.0.0.1
   peer_as: 1
   local_as: 65000
-- peer_ip: 10.0.10.2
+- peer_ip: 10.0.0.2
   peer_as: 2
   local_as: 65000
-- peer_ip: 10.0.30.2
+- peer_ip: 10.0.0.2
+  peer_as: 2
+  local_as: 65000
+- peer_ip: 10.0.0.2
   peer_as: 65000
   local_as: 65000
 
@@ -96,6 +99,8 @@ dps:
     faucet = None
     faucet_api = None
     fbgp = None
+    local_ip = '10.0.0.253'
+    local_as = 65000
 
     def start_controller(self):
         self.proc = subprocess.Popen(['ryu-manager', 'faucet.faucet', 'fbgp.fbgp'], stderr=subprocess.PIPE)
@@ -129,12 +134,6 @@ dps:
 
         cls.fbgp = FlowBasedBGP(faucet_experimental_api=cls.faucet_api)
 
-        with patch('fbgp.fbgp.ExaBgpConnect', MockExaBgpConnect()) as exabgp_connect, \
-                patch('fbgp.fbgp.FaucetConnect', MockFaucetConnect()) as faucet_connect, \
-                patch('fbgp.fbgp.ServerConnect', MockServerConnect()) as server_connect:
-
-            cls.fbgp.initialize()
-
     @classmethod
     def tearDownClass(cls):
         cls.faucet.close()
@@ -142,80 +141,119 @@ dps:
             shutil.rmtree(cls.tempdir)
 
     def setUp(self):
-        for peer in self.fbgp.peers.values():
-            peer.bgp_session_up()
+        with patch('fbgp.fbgp.ExaBgpConnect', MockExaBgpConnect()) as exabgp_connect, \
+                patch('fbgp.fbgp.FaucetConnect', MockFaucetConnect()) as faucet_connect, \
+                patch('fbgp.fbgp.ServerConnect', MockServerConnect()) as server_connect:
+
+            self.fbgp.initialize()
+
+        self.peers = list(self.fbgp.peers.values())
+        for peer in self.peers:
+            self.peer_up(peer)
 
     def tearDown(self):
-        pass
+        self.reset_mocker()
 
-    def create_fbgp(self):
-        faucet_api = FaucetExperimentalAPI()
-        faucet = Faucet(faucet_experimental_api=faucet_api, dpset=None)
-        faucet.reload_config(None)
-        faucet_api._register(faucet)
-        fbgp = FlowBasedBGP(faucet_experimental_api=faucet_api)
-        fbgp._load_config()
-        return fbgp
-
-    def verify_exabgp_msg_processing(self, fbgp, msg):
-        fbgp._process_exabgp_msg(msg)
-
-    def get_exabgp_msg(self, announce=True):
-        msg = """
-        {
-            'neighbor': {
-                'address': {'local': '10.0.10.253', 'peer': '10.0.10.1' },
-                'asn': {'local': 65000, 'peer': 1 },
-                'message': {
-                    'update': {
-                        'announce': {
-                            'ipv4 unicast' : {'10.0.10.1': [{'nlri': '1.0.0.0/24'}, {'nlri': '2.0.0.0/24'}]}
-                        },
-                        'attribute': { 'as-path': [1, 2, 3] }
-                    }
-                }
-            },
-            'type': 'update', 'direction': 'receive'
-        }
+    def generate_peer_state_msg(self, peer_ip, peer_as, state):
+        msg = """{ "exabgp": "4.0.1", "time": %s, "type": "state",
+            "neighbor": {
+                "address": { "local": "%s", "peer": "%s" },
+                "asn": { "local": %s, "peer": %s },
+            "state": "%s" } }
         """
+        return msg % (time.time(), self.local_ip, peer_ip, self.local_as, peer_as, state)
+
+    def generate_update_msg(self, peer_ip, peer_as, prefix, announce=True, **kwargs):
+        msg = """{ "exabgp": "4.0.1", "time": %s, "type": "update",
+                   "neighbor": {
+                        "address": { "local": "%s", "peer": "%s" },
+                        "asn": { "local": %s, "peer": %s } , "direction": "receive",
+                        "message": {
+                            "update": { "attribute": { "origin": "%s", "as-path": %s,
+                            "confederation-path": [], "med": %s },
+                            "announce": { %s },
+                            "withdraw": { %s } }}
+                    }
+                 }
+              """
+        peer_ip = str(peer_ip)
+        if announce:
+            announce = '"ipv4 unicast": { "%s": [ { "nlri": "%s" } ]}' % (peer_ip, prefix)
+            withdraw = ''
+        else:
+            announce = ''
+            withdraw = '"ipv4 unicast": [{"nlri": "%s"}]' % prefix
+        as_path = kwargs.get('as_path') or [peer_as]
+        origin = kwargs.get('origin') or 'igp'
+        med = kwargs.get('med') or 0
+        return msg % (time.time(), self.local_ip, peer_ip, self.local_as, peer_as,
+                      origin, as_path, med, announce, withdraw)
 
     def reset_mocker(self):
         self.fbgp.exabgp_connect.reset_mock()
         self.fbgp.faucet_connect.reset_mock()
         self.fbgp.server_connect.reset_mock()
 
-    def test_rcv_update_from_exabgp(self):
-        msg = """
-        {
-            "neighbor": {
-                "address": {"local": "10.0.10.253", "peer": "10.0.10.1" },
-                "asn": {"local": 65000, "peer": 1 },
-                "message": {
-                    "update": {
-                        "announce": {
-                            "ipv4 unicast" : {"10.0.10.1": [{"nlri": "1.0.0.0/24"}]}
-                        },
-                        "attribute": { "as-path": [1, 2, 3] }
-                    }
-                }
-            },
-            "type": "update", "direction": "receive"
-        }
-        """
-        self.fbgp._rcv_exabgp_msg(msg)
-        time.sleep(1)
-        self.assertEqual(len(self.fbgp.bgp.loc_rib), 1)
-        for peer in self.fbgp.peers.values():
-            if str(peer.peer_ip) == '10.0.10.1':
-                len_rib_in = 1
-                len_rib_out = 0
-            else:
-                len_rib_in = 0
-                len_rib_out = 1
+    def peer_up(self, peer):
+        msg = self.generate_peer_state_msg(peer.peer_ip, peer.peer_as, 'up')
+        self.fbgp._process_exabgp_msg(msg)
+        self.assertTrue(peer.state=='up')
 
-            self.assertEqual(len(peer._rib_in), len_rib_in)
-            self.assertEqual(len(peer._rib_out), len_rib_out)
+    def peer_down(self, peer):
+        msg = self.generate_peer_state_msg(peer.peer_ip, peer.peer_as, 'down')
+        self.fbgp._process_exabgp_msg(msg)
+        self.assertTrue(peer.state=='down')
+        self.assertTrue(len(peer._rib_in) == 0 and len(peer._rib_out) == 0)
+
+    def peer_announce(self, peer, prefix):
+        msg = self.generate_update_msg(peer.peer_ip, peer.peer_as, prefix)
+        self.fbgp._process_exabgp_msg(msg)
+
+    def peer_withdraw(self, peer, prefix):
+        msg = self.generate_update_msg(peer.peer_ip, peer.peer_as, prefix, False)
+        self.fbgp._process_exabgp_msg(msg)
+
+    def verify_prefix_in_loc_rib(self, prefix):
+        prefix = ipaddress.ip_network(prefix)
+        self.assertTrue(prefix in self.fbgp.bgp.loc_rib)
+
+    def verify_prefix_in_rib_out(self, peer, prefix):
+        prefix = ipaddress.ip_network(prefix)
+        self.assertTrue(prefix in peer._rib_out)
+
+    def verify_best_route(self, prefix):
+        prefix = ipaddress.ip_network(prefix)
+        self.assertTrue(prefix in self.fbgp.bgp.best_routes)
+
+    def announce_and_verify(self):
+        prefix = '1.0.0.0/24'
+        first_peer = self.peers[0]
+        self.peer_announce(first_peer, prefix)
+        self.verify_prefix_in_loc_rib(prefix)
+        self.verify_best_route(prefix)
+        for peer in self.peers[1:]:
+            self.assertEqual(len(peer._rib_in), 0)
+            self.assertEqual(len(peer._rib_out), 1)
 
         self.assertTrue(self.fbgp.exabgp_connect.send.call_count==(len(self.fbgp.peers) -1))
-        #self.assertTrue(self.faucet_api_add_route.call_count==1, self.faucet_api_add_route.call_count)
-        self.reset_mocker()
+
+    def test_rcv_exabgp_update(self):
+        self.announce_and_verify()
+
+    def test_peer_go_down(self):
+        """Test when the peer gives us the best route goes down."""
+        self.announce_and_verify()
+        first_peer = self.peers[0]
+        self.peer_down(first_peer)
+        for peer in self.peers[1:]:
+            self.assertEqual(len(peer._rib_in), 0)
+            self.assertEqual(len(peer._rib_out), 0)
+
+    def test_peer_go_up(self):
+        """Test when a peer goes down and up again."""
+        self.announce_and_verify()
+        peer = self.peers[1]
+        for func, l in [('peer_down', 0), ('peer_up', 1)]:
+            getattr(self, func)(peer)
+            self.assertEqual(len(peer._rib_in), 0)
+            self.assertEqual(len(peer._rib_out), l)

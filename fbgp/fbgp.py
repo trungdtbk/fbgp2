@@ -202,16 +202,30 @@ class FlowBasedBGP(app_manager.RyuApp):
                         gateway, pathid, other_peer.dp_id, other_peer.vlan_vid)
                     self._update_fib(
                         route.prefix, route.nexthop, peer.dp_id, peer.vlan_vid, pathid)
-            elif new_best and new_best != cur_best:
-                if other_peer.is_ibgp():
-                    msgs.extend(self.bgp.announce(other_peer, new_best, self.routerid))
-                else:
-                    if new_best.as_path[0] == other_peer.peer_as and cur_best:
-                        msgs.extend(self.bgp.withdraw(other_peer, cur_best))
+
+            else:
+                _route = None
+                kwargs = {}
+                if not new_best and cur_best and withdraw:
+                    func = self.bgp.withdraw
+                    _route = cur_best
+                elif new_best and cur_best:
+                    if new_best.from_peer == other_peer.peer_ip:
+                        func = self.bgp.withdraw
+                        _route = cur_best
                     else:
-                        msgs.extend(self.bgp.announce(other_peer, new_best))
-            elif not new_best and cur_best and withdraw:
-                msgs.extend(self.bgp.withdraw(other_peer, cur_best))
+                        func = self.bgp.announce
+                        _route = new_best
+                        kwargs['gateway'] = None
+                elif new_best and not cur_best:
+                    func = self.bgp.announce
+                    _route = new_best
+                    kwargs['gateway'] = None
+
+                if _route:
+                    if other_peer.is_ibgp() and 'gateway' in kwargs:
+                        kwargs['gateway'] = self.routerid
+                    msgs.extend(func(other_peer, _route, **kwargs))
         return msgs
 
     def register(self):

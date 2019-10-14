@@ -93,8 +93,10 @@ neighbor %s {
                     msg = self.send_queue.get()
                     self.conn.send(msg)
                     self.logger.debug('sent msg <%s> to ExaBGP' % msg)
-            except:
-                self.logger.error('error sending msg [%s] to ExaBGP' % msg)
+                else:
+                    time.sleep(1)
+            except Exception as e:
+                self.logger.error('error %s when sending msg to ExaBGP hook' % e)
 
     def start(self):
         self.logger.info('starting ExaBGP...')
